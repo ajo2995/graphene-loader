@@ -1,0 +1,16 @@
+match (a:PhysicalEntity)<-[r:INPUT]-(b:Event) merge (a)-[s:INPUT]->(b) delete r return count(a);
+
+match (p:PhysicalEntity) where (p.name =~ 'H2O.*' or p.name =~ 'Pi.*' or p.name =~ 'ATP.*' or p.name =~ 'ADP.*' or p.name =~ 'AMP.*' or p.name=~ 'H\\+.*' or p.name=~ 'PPi.*' or p.name=~ 'L-Glu.*' or p.name=~ '2OG.*' or p.name=~ 'NAD.*' or p.name=~ 'CoA.*' or p.name =~ 'NH3.*' or p.name =~ 'THF.*' or p.name =~ 'UDP-Glc.*' or p.name =~ 'AdoMet.*' or p.name =~ 'AdoHcy.*') and not p.name =~ '.*ase.*' and not p.name = 'UDP-GlcNAc-enolpyruvate [cytosol]' set p.common = true return count(*) as num_common;
+
+match (s:PhysicalEntity) where not has(s.common) set s.common = false return count(s);
+
+match (s:PhysicalEntity)-[si:INPUT]->(r:Event)-[po:OUTPUT]->(p:PhysicalEntity) where s.common = false and p.common = false merge (s)-[:TO]->(p) return count(*);
+
+match (r1:Event)-[:OUTPUT]->(p:PhysicalEntity)-[:INPUT]->(r2:Event) where p.common = false merge (r1)-[:TO]->(r2) return count(*) as num_links;
+
+match (a:SimpleEntity)-[:TO]->(b:SimpleEntity), (a)-[:INPUT]->(r:Event)-[:OUTPUT]->(b), (r)-[:SPECIES]->(s:Species) merge (to:To{between:id(a), and:id(b)}) merge (a)-[:VIA]->(to) merge (to)-[:VIA]->(b) merge (to)-[:RXN]->(r) merge (to)-[:SPECIES]->(s)   return count(to);
+
+match (to:Reaction)-[:CATALYST_ACTIVITY]->(:CatalystActivity)-[:PHYSICAL_ENTITY]->(phys:PhysicalEntity), geneProductPath=(phys)-[:HAS_MEMBER|HAS_COMPONENT|REFERENCE_ENTITY*..3]->(gp:ReferenceGeneProduct) create (to)-[:ENCODED_BY]->(gp) return count(*);
+
+match (i:PhysicalEntity{common:false})-[:INPUT]->(r:Reaction)-[:OUTPUT]->(o:PhysicalEntity{common:false}), (i)-[:INPUT]->(r2:Event)-[:OUTPUT]->(o) merge (r)-[:METABOLITE_LINK]->(r2);
+

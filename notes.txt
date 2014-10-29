@@ -1,0 +1,441 @@
+Downloaded reactome_42 mysql dump from http://plantreactome.gramene.org/download/current_plant_reactome_database.sql.gz
+
+Used Sequel Pro to dump the DatabaseObject table to a csv (~600000 records)
+
+Used head to make a rather shorter file for testing
+$ head nodes.csv > nodes_10.csv
+
+Installed neo4j
+$ brew install neo4j
+Went to http://localhost:7474
+
+First attempt that worked: 
+load csv with headers from "file:///Users/mulvaney/devel/graphy/reactome_42/nodes.csv" as csvLine create (p { id:csvLine.DB_ID, name:csvLine._displayName, type:csvLine._class })
+
+OK, let's try and see those nodes
+match p return p
+
+OK, let's delete them all and do that again
+match p delete p
+
+And then we switch tack in an attempt to import from CSV, defining labels from a column, according to this blog post: http://blog.bruggen.com/2013/10/same-csv-files-different-neo4j-database.html
+
+#1 install neo4j-shell-tools
+https://github.com/jexp/neo4j-shell-tools
+
+Run neo4j, set up auto-indexing on id, name and type
+$ neo4j-shell
+neo4j-sh (?)$ auto-index id name type
+
+Divine the incantation for reading the file
+neo4j-sh (?)$ import-cypher -d , -q -i /Users/mulvaney/devel/graphy/reactome_42/nodes.csv -o /Users/mulvaney/devel/graphy/reactome_42/nodes_output.csv create (n:#{_class} {id:{DB_ID}, name:{_displayName}}) return n.name as name
+
+Sanity check cyhper queries:
+match (n:ReferenceDatabase) return n
+  ==> returns 38 results
+match n return count(n)
+  ==> returns 625436
+
+OK! Now, use Sequel Pro to export all the tables in CSV format using the default options to /Users/mulvaney/devel/graphy/reactome_42/db
+
+Delete everything and reload
+mkdir load-out
+
+import-cypher -d , -q -i /Users/mulvaney/devel/graphy/reactome_42/db/DatabaseObject.csv -o /Users/mulvaney/devel/graphy/reactome_42/load-out/DatabaseObject.csv create (n:#{_class} {id:{DB_ID}, name:{_displayName}}) return n.name as name
+
+Try adding edges from a small file
+import-cypher -d , -q -i /Users/mulvaney/devel/graphy/reactome_42/db/GO_BiologicalProcess_2_componentOf.csv -o /Users/mulvaney/devel/graphy/reactome_42/load-out/GO_BiologicalProcess_2_componentOf.csv start n1=node:node_auto_index(id={DB_ID}), n2=node:node_auto_index(id={componentOf}) create unique n1-[:COMPONENT_OF{rank:{componentOf_rank}}]->n2 return n1.name, n2.name
+
+Does it work? Yes:
+start n=node:node_auto_index(name = "signal transduction") match n-[r]->m return labels(n), n.name, type(r), r.rank, labels(m), m.name
+
+NB, just asking for all relationships of this type is very slow because there are no indices and 600000 nodes.
+
+Add more edges:
+import-cypher -d , -q -i /Users/mulvaney/devel/graphy/reactome_42/db/GO_BiologicalProcess_2_hasPart.csv -o /Users/mulvaney/devel/graphy/reactome_42/load-out/GO_BiologicalProcess_2_hasPart.csv start n1=node:node_auto_index(id={DB_ID}), n2=node:node_auto_index(id={hasPart}) create unique n1-[:HAS_PART{rank:{hasPart_rank}}]->n2 return n1.name, n2.name
+
+[8 more .... see import-cypher.txt]
+ 
+OK, let's try something a bit more complex; Regulation
+import-cypher -d , -q -i /Users/mulvaney/devel/graphy/reactome_42/db/Regulation.csv -o /Users/mulvaney/devel/graphy/reactome_42/load-out/Regulation.csv start reg=node:node_auto_index(id={DB_ID}), obj=node:node_auto_index(id={regulatedEntity}), sub=node:node_auto_index(id={regulator}) create unique sub-[r:REGULATES {regulationType:labels(reg)[0]} ]->obj delete reg return sub.name, r.regulationType, obj.name
+
+Taxonomy:
+import-cypher -d , -q -i /Users/mulvaney/devel/graphy/reactome_42/db/Taxon.csv -o /Users/mulvaney/devel/graphy/reactome_42/load-out/Taxon.csv start n1=node:node_auto_index(id={superTaxon}), n2=node:node_auto_index(id={DB_ID}) create unique n1-[:PARENT_OF]->n2 return n1.name, n2.name
+
+import-cypher -d , -q -i /Users/mulvaney/devel/graphy/reactome_42/db/Taxon_2_literatureReference.csv -o /Users/mulvaney/devel/graphy/reactome_42/load-out/Taxon_2_literatureReference.csv start n=node:node_auto_index(id={DB_ID}), m=node:node_auto_index(id={literatureReference}) set n.xref = m.name delete m return labels(n), n.name
+
+Events: I think an event is a reaction or pathway or whatnot
+#1 link to species
+#2 link orthologous events
+#3 link preceding events
+#4 cross reference
+#5 the event itself has go links
+#6 inference
+#7 literature references
+#8 summations (what are these exactly?)
+
+ReactionlikeEvent
+#1 catalyst activity
+#2 input
+#3 output
+
+Pathway
+#1 link to event
+
+OK, let's validate some of that stuff. Find a pathway name/id (i.e. using MySQL), then:
+
+start n=node:node_auto_index(name="Calvin cycle") return n
+OK, we got a bunch of other stuff in addition to what we were expecting. Let's try this:
+
+start n=node:node_auto_index(name="Calvin cycle") match (n:Pathway) return n
+
+OK, we got some pathways. Let's add reactions!
+start n=node:node_auto_index(name="Calvin cycle") match (n)-[:CONTAINS]-(m:Reaction)-[:NEXT_TO]-(o:Reaction) return n, m, o
+
+Crap that's a big messy graph. We are looking at 18 pathways from different species. Let's use the :OCCURS_IN and :INFERRED_FROM relations to find which is best annotated and just use taht one:
+start n=node:node_auto_index(name="Calvin cycle"), o=node:node_auto_index(name="Calvin cycle") match (n:Pathway)-[r:INFERRED_FROM]->(o:Pathway)-[:OCCURS_IN]->(s) return n, type(r), o, s
+
+Looks like it's Maize. So lets focus on that one:
+start s=node:node_auto_index(name="Oryza sativa"), p1=node:node_auto_index(name="Calvin cycle") match (s:Species)<-[:OCCURS_IN]-(p1:Pathway), (p1)-[:CONTAINS]->(r:Reaction) return s, p1, r
+
+...add back the reactions:
+start s=node:node_auto_index(name="Oryza sativa"), p1=node:node_auto_index(name="Calvin cycle") match (s:Species)<-[:OCCURS_IN]-(p1:Pathway), (p1)-[:CONTAINS]->(r:Reaction) return s, p1, r
+
+we're not very interested in the species and pathway nodes any more
+start s=node:node_auto_index(name="Oryza sativa"), p1=node:node_auto_index(name="Calvin cycle") match (s:Species)<-[:OCCURS_IN]-(p1:Pathway), (p1)-[:CONTAINS]->(r:Reaction) return r
+
+let's link those reactions together by their substrates and reactants, using :INPUT and :OUTPUT relationships:
+start s=node:node_auto_index(name="Oryza sativa"), p1=node:node_auto_index(name="Calvin cycle") match (s:Species)<-[:OCCURS_IN]-(p1:Pathway), (p1)-[:CONTAINS]->(r:Reaction), (i)-[:INPUT]->(r)-[:OUTPUT]->(o)  return r, i, o
+
+yay! water seems to be confounding this, let's try explictily removing it with a "where" clause
+start s=node:node_auto_index(name="Oryza sativa"), p1=node:node_auto_index(name="Calvin cycle") match (s:Species)<-[:OCCURS_IN]-(p1:Pathway), (p1)-[:CONTAINS]->(r:Reaction), (i:SimpleEntity)-[:INPUT]->(r)-[:OUTPUT]->(o:SimpleEntity) where not i.name = "H2O [plastid stroma]" and not o.name = "H2O [plastid stroma]"  return r, i, o
+
+Meh. 
+
+Let's try something different. Let's find all cases where, for all reactions inside that pathway, we can find metabolites that link them together.
+start s=node:node_auto_index(name="Oryza sativa"), p1=node:node_auto_index(name="Calvin cycle") match (s:Species)<-[:OCCURS_IN]-(p1:Pathway), (p1)-[:CONTAINS]->(r:Reaction), (p1)-[:CONTAINS]->(r2:Reaction), (r2)-[:OUTPUT]->(i:SimpleEntity)-[:INPUT]->(r)-[:OUTPUT]->(o:SimpleEntity), (r)-[:NEXT_TO]-(x:Reaction) return r2, i, r
+
+<<<<<<< Local Changes
+<<<<<<< Local Changes
+<<<<<<< Local Changes
+<<<<<<< Local Changes
+<<<<<<< Local Changes
+<<<<<<< Local Changes
+<<<<<<< Local Changes
+<<<<<<< Local Changes
+<<<<<<< Local Changes
+<<<<<<< Local Changes
+<<<<<<< Local Changes
+<<<<<<< Local Changes
+All rather incomplete and unsatisfying.
+
+Maybe we shouldn't just focus on a single pathway. What if we start with a reaction and follow chains of INPUT and OUTPUT?
+start r=node:node_auto_index(id="5149656") match (r)-[:OUTPUT]->(e)-[:INPUT]->(r2) return r, e, r2
+
+...well we kind of get bushes of stuff. some simpleentities are very promiscuous. e.g. water. Maybe we should look into that
+start r=node:node_auto_index(id="5149656") match (r)-[:OUTPUT]->(e)-[:INPUT]->(r2) return r, e, r2
+
+Hmm. SimpleEntity is a mess: name is a combination of thing name and subcellular localization. Maybe we need to update the data model a bit with:
+PhysicalEntity stuff.
+#0 add the physicalEntity label
+#1 compartment
+#2 inferredFrom
+#3 inferredTo
+#4 name
+
+And let's validate some of that. Find things named 'H2O' that are in a particular compartment:
+start r=node:node_auto_index(name="H2O") match (r:Name)<-[:NAMED]-(s)-[:CONTAINS]-(c:EntityCompartment{ name:'mitochondrial matrix' }) return s
+
+So now we can try to find which *names* we can see are 'frequent hitters' in reaction schemes and are thus less interesting
+First, no names, we get compartments mixed in:
+
+match (m:SimpleEntity)-[:INPUT|OUTPUT]->(r) return m.name, count(r) as num_rxns order by num_rxns desc
+
+OK, so, let's fix that.
+match (n:Name)<-[nr:NAMED]-(m:SimpleEntity)-[:INPUT|OUTPUT]->(r) where nr.rank = "0" return n.name, nr.rank, count(r) as num_rxns order by num_rxns desc=======
+All rather incomplete and unsatisfying.
+
+
+NEXT, I wrote import.groovy to bulk import the entire database systematically.
+
+
+Then I fixed it up as follows:
+* switch direction of :INPUT rships
+match (a:PhysicalEntity)<-[r:INPUT]-(b:Event) merge (a)-[s:INPUT]->(b) delete r return count(a)
+
+* add :TO relationships between adjacent PhysicalEntities and also Events
+match (s:PhysicalEntity)-[si:INPUT]->(r:Event)-[po:OUTPUT]->(p:PhysicalEntity) merge (s)-[:TO]->(p) return count(*)
+>>>>>>> External Changes
+=======
+All rather incomplete and unsatisfying.
+
+
+NEXT, I wrote import.groovy to bulk import the entire database systematically.
+
+
+Then I fixed it up as follows:
+* switch direction of :INPUT rships
+match (a:PhysicalEntity)<-[r:INPUT]-(b:Event) merge (a)-[s:INPUT]->(b) delete r return count(a)
+
+* add :TO relationships between adjacent PhysicalEntities and also Events
+match (s:PhysicalEntity)-[si:INPUT]->(r:Event)-[po:OUTPUT]->(p:PhysicalEntity) merge (s)-[:TO]->(p) return count(*)
+match (r1:Event)-[:OUTPUT]->(p:PhysicalEntity)-[:INPUT]->(r2:Event) where not (p.name =~ 'H2O.*' or p.name =~ 'Pi.*' or p.name =~ 'ATP.*' or p.name =~ 'ADP.*' or p.name =~ 'AMP.*' or p.name=~ 'H\\+.*' or p.name=~ 'PPi.*' or p.name=~ 'L-Glu.*' or p.name=~ '2OG.*' or p.name=~ 'NAD.*' or p.name=~ 'CoA.*' or p.name =~ 'NH3.*' or p.name =~ 'THF.*' or p.name =~ 'UDP-Glc.*' or p.name =~ 'AdoMet.*' or p.name =~ 'AdoHcy.*') merge (r1)-[:TO{linkedBy:p.name}]->(r2) return count(*) as num_links
+
+* hmm... maybe let's flag those special cases as common metabolites...
+>>>>>>> External Changes
+=======
+All rather incomplete and unsatisfying.
+
+
+NEXT, I wrote import.groovy to bulk import the entire database systematically.
+
+
+Then I fixed it up as follows:
+* switch direction of :INPUT rships
+match (a:PhysicalEntity)<-[r:INPUT]-(b:Event) merge (a)-[s:INPUT]->(b) delete r return count(a)
+
+* add :TO relationships between adjacent PhysicalEntities and also Events
+match (s:PhysicalEntity)-[si:INPUT]->(r:Event)-[po:OUTPUT]->(p:PhysicalEntity) merge (s)-[:TO]->(p) return count(*)
+match (r1:Event)-[:OUTPUT]->(p:PhysicalEntity)-[:INPUT]->(r2:Event) where not (p.name =~ 'H2O.*' or p.name =~ 'Pi.*' or p.name =~ 'ATP.*' or p.name =~ 'ADP.*' or p.name =~ 'AMP.*' or p.name=~ 'H\\+.*' or p.name=~ 'PPi.*' or p.name=~ 'L-Glu.*' or p.name=~ '2OG.*' or p.name=~ 'NAD.*' or p.name=~ 'CoA.*' or p.name =~ 'NH3.*' or p.name =~ 'THF.*' or p.name =~ 'UDP-Glc.*' or p.name =~ 'AdoMet.*' or p.name =~ 'AdoHcy.*') merge (r1)-[:TO{linkedBy:p.name}]->(r2) return count(*) as num_links
+
+* hmm... maybe let's flag those special cases as common metabolites...
+match (p:PhysicalEntity) where (p.name =~ 'H2O.*' or p.name =~ 'Pi.*' or p.name =~ 'ATP.*' or p.name =~ 'ADP.*' or p.name =~ 'AMP.*' or p.name=~ 'H\\+.*' or p.name=~ 'PPi.*' or p.name=~ 'L-Glu.*' or p.name=~ '2OG.*' or p.name=~ 'NAD.*' or p.name=~ 'CoA.*' or p.name =~ 'NH3.*' or p.name =~ 'THF.*' or p.name =~ 'UDP-Glc.*' or p.name =~ 'AdoMet.*' or p.name =~ 'AdoHcy.*') set p.common = true return count(*) as num_common
+
+>>>>>>> External Changes
+=======
+All rather incomplete and unsatisfying.
+
+
+NEXT, I wrote import.groovy to bulk import the entire database systematically.
+
+
+Then I fixed it up as follows:
+* switch direction of :INPUT rships
+match (a:PhysicalEntity)<-[r:INPUT]-(b:Event) merge (a)-[s:INPUT]->(b) delete r return count(a)
+
+* add :TO relationships between adjacent PhysicalEntities and also Events
+match (s:PhysicalEntity)-[si:INPUT]->(r:Event)-[po:OUTPUT]->(p:PhysicalEntity) merge (s)-[:TO]->(p) return count(*)
+match (r1:Event)-[:OUTPUT]->(p:PhysicalEntity)-[:INPUT]->(r2:Event) where not (p.name =~ 'H2O.*' or p.name =~ 'Pi.*' or p.name =~ 'ATP.*' or p.name =~ 'ADP.*' or p.name =~ 'AMP.*' or p.name=~ 'H\\+.*' or p.name=~ 'PPi.*' or p.name=~ 'L-Glu.*' or p.name=~ '2OG.*' or p.name=~ 'NAD.*' or p.name=~ 'CoA.*' or p.name =~ 'NH3.*' or p.name =~ 'THF.*' or p.name =~ 'UDP-Glc.*' or p.name =~ 'AdoMet.*' or p.name =~ 'AdoHcy.*') merge (r1)-[:TO{linkedBy:p.name}]->(r2) return count(*) as num_links
+
+* hmm... maybe let's flag those special cases as common metabolites...
+match (p:PhysicalEntity) where (p.name =~ 'H2O.*' or p.name =~ 'Pi.*' or p.name =~ 'ATP.*' or p.name =~ 'ADP.*' or p.name =~ 'AMP.*' or p.name=~ 'H\\+.*' or p.name=~ 'PPi.*' or p.name=~ 'L-Glu.*' or p.name=~ '2OG.*' or p.name=~ 'NAD.*' or p.name=~ 'CoA.*' or p.name =~ 'NH3.*' or p.name =~ 'THF.*' or p.name =~ 'UDP-Glc.*' or p.name =~ 'AdoMet.*' or p.name =~ 'AdoHcy.*') set p.common = true return count(*) as num_common
+
+* oops... got some false common ones.
+match (p:PhysicalEntity) where p.common = true and p.name =~ '.*ase.*' return p.name
+
+* lets unset the common flag on those
+>>>>>>> External Changes
+=======
+All rather incomplete and unsatisfying.
+
+
+NEXT, I wrote import.groovy to bulk import the entire database systematically.
+
+
+Then I fixed it up as follows:
+* switch direction of :INPUT rships
+match (a:PhysicalEntity)<-[r:INPUT]-(b:Event) merge (a)-[s:INPUT]->(b) delete r return count(a)
+
+* add :TO relationships between adjacent PhysicalEntities and also Events
+match (s:PhysicalEntity)-[si:INPUT]->(r:Event)-[po:OUTPUT]->(p:PhysicalEntity) merge (s)-[:TO]->(p) return count(*)
+match (r1:Event)-[:OUTPUT]->(p:PhysicalEntity)-[:INPUT]->(r2:Event) where not (p.name =~ 'H2O.*' or p.name =~ 'Pi.*' or p.name =~ 'ATP.*' or p.name =~ 'ADP.*' or p.name =~ 'AMP.*' or p.name=~ 'H\\+.*' or p.name=~ 'PPi.*' or p.name=~ 'L-Glu.*' or p.name=~ '2OG.*' or p.name=~ 'NAD.*' or p.name=~ 'CoA.*' or p.name =~ 'NH3.*' or p.name =~ 'THF.*' or p.name =~ 'UDP-Glc.*' or p.name =~ 'AdoMet.*' or p.name =~ 'AdoHcy.*') merge (r1)-[:TO{linkedBy:p.name}]->(r2) return count(*) as num_links
+
+* hmm... maybe let's flag those special cases as common metabolites...
+match (p:PhysicalEntity) where (p.name =~ 'H2O.*' or p.name =~ 'Pi.*' or p.name =~ 'ATP.*' or p.name =~ 'ADP.*' or p.name =~ 'AMP.*' or p.name=~ 'H\\+.*' or p.name=~ 'PPi.*' or p.name=~ 'L-Glu.*' or p.name=~ '2OG.*' or p.name=~ 'NAD.*' or p.name=~ 'CoA.*' or p.name =~ 'NH3.*' or p.name =~ 'THF.*' or p.name =~ 'UDP-Glc.*' or p.name =~ 'AdoMet.*' or p.name =~ 'AdoHcy.*') set p.common = true return count(*) as num_common
+
+* oops... got some false common ones.
+match (p:PhysicalEntity) where p.common = true and p.name =~ '.*ase.*' return p.name
+
+* lets unset the common flag on those and another one i found by inspecting the list
+
+match (p:PhysicalEntity{name:'UDP-GlcNAc-enolpyruvate [cytosol]'}) remove p.common return p>>>>>>> External Changes
+=======
+All rather incomplete and unsatisfying.
+
+
+NEXT, I wrote import.groovy to bulk import the entire database systematically.
+
+
+Then I fixed it up as follows:
+* switch direction of :INPUT rships
+match (a:PhysicalEntity)<-[r:INPUT]-(b:Event) merge (a)-[s:INPUT]->(b) delete r return count(a)
+
+* add :TO relationships between adjacent PhysicalEntities and also Events
+match (s:PhysicalEntity)-[si:INPUT]->(r:Event)-[po:OUTPUT]->(p:PhysicalEntity) merge (s)-[:TO]->(p) return count(*)
+match (r1:Event)-[:OUTPUT]->(p:PhysicalEntity)-[:INPUT]->(r2:Event) where not (p.name =~ 'H2O.*' or p.name =~ 'Pi.*' or p.name =~ 'ATP.*' or p.name =~ 'ADP.*' or p.name =~ 'AMP.*' or p.name=~ 'H\\+.*' or p.name=~ 'PPi.*' or p.name=~ 'L-Glu.*' or p.name=~ '2OG.*' or p.name=~ 'NAD.*' or p.name=~ 'CoA.*' or p.name =~ 'NH3.*' or p.name =~ 'THF.*' or p.name =~ 'UDP-Glc.*' or p.name =~ 'AdoMet.*' or p.name =~ 'AdoHcy.*') merge (r1)-[:TO{linkedBy:p.name}]->(r2) return count(*) as num_links
+
+* hmm... maybe let's flag those special cases as common metabolites...
+match (p:PhysicalEntity) where (p.name =~ 'H2O.*' or p.name =~ 'Pi.*' or p.name =~ 'ATP.*' or p.name =~ 'ADP.*' or p.name =~ 'AMP.*' or p.name=~ 'H\\+.*' or p.name=~ 'PPi.*' or p.name=~ 'L-Glu.*' or p.name=~ '2OG.*' or p.name=~ 'NAD.*' or p.name=~ 'CoA.*' or p.name =~ 'NH3.*' or p.name =~ 'THF.*' or p.name =~ 'UDP-Glc.*' or p.name =~ 'AdoMet.*' or p.name =~ 'AdoHcy.*') set p.common = true return count(*) as num_common
+
+* oops... got some false common ones.
+match (p:PhysicalEntity) where p.common = true and p.name =~ '.*ase.*' return p.name
+
+* lets unset the common flag on those and another one i found by inspecting the list
+match (p:PhysicalEntity) where p.common = true and p.name =~ '.*ase.*' remove p.common return p
+match (p:PhysicalEntity{name:'UDP-GlcNAc-enolpyruvate [cytosol]'}) remove p.common return p
+
+* let's remove the :TO relationships and add them again
+>>>>>>> External Changes
+=======
+All rather incomplete and unsatisfying.
+
+
+NEXT, I wrote import.groovy to bulk import the entire database systematically.
+
+
+Then I fixed it up as follows:
+* switch direction of :INPUT rships
+match (a:PhysicalEntity)<-[r:INPUT]-(b:Event) merge (a)-[s:INPUT]->(b) delete r return count(a)
+
+* add :TO relationships between adjacent PhysicalEntities and also Events
+match (s:PhysicalEntity)-[si:INPUT]->(r:Event)-[po:OUTPUT]->(p:PhysicalEntity) merge (s)-[:TO]->(p) return count(*)
+match (r1:Event)-[:OUTPUT]->(p:PhysicalEntity)-[:INPUT]->(r2:Event) where not (p.name =~ 'H2O.*' or p.name =~ 'Pi.*' or p.name =~ 'ATP.*' or p.name =~ 'ADP.*' or p.name =~ 'AMP.*' or p.name=~ 'H\\+.*' or p.name=~ 'PPi.*' or p.name=~ 'L-Glu.*' or p.name=~ '2OG.*' or p.name=~ 'NAD.*' or p.name=~ 'CoA.*' or p.name =~ 'NH3.*' or p.name =~ 'THF.*' or p.name =~ 'UDP-Glc.*' or p.name =~ 'AdoMet.*' or p.name =~ 'AdoHcy.*') merge (r1)-[:TO{linkedBy:p.name}]->(r2) return count(*) as num_links
+
+* hmm... maybe let's flag those special cases as common metabolites...
+match (p:PhysicalEntity) where (p.name =~ 'H2O.*' or p.name =~ 'Pi.*' or p.name =~ 'ATP.*' or p.name =~ 'ADP.*' or p.name =~ 'AMP.*' or p.name=~ 'H\\+.*' or p.name=~ 'PPi.*' or p.name=~ 'L-Glu.*' or p.name=~ '2OG.*' or p.name=~ 'NAD.*' or p.name=~ 'CoA.*' or p.name =~ 'NH3.*' or p.name =~ 'THF.*' or p.name =~ 'UDP-Glc.*' or p.name =~ 'AdoMet.*' or p.name =~ 'AdoHcy.*') set p.common = true return count(*) as num_common
+
+* oops... got some false common ones.
+match (p:PhysicalEntity) where p.common = true and p.name =~ '.*ase.*' return p.name
+
+* lets unset the common flag on those and another one i found by inspecting the list
+match (p:PhysicalEntity) where p.common = true and p.name =~ '.*ase.*' remove p.common return p
+match (p:PhysicalEntity{name:'UDP-GlcNAc-enolpyruvate [cytosol]'}) remove p.common return p
+
+* let's remove the :TO relationships and add them again
+match ()-[r:TO]-() delete r>>>>>>> External Changes
+=======
+All rather incomplete and unsatisfying.
+
+
+NEXT, I wrote import.groovy to bulk import the entire database systematically.
+
+
+Then I fixed it up as follows:
+* switch direction of :INPUT rships
+match (a:PhysicalEntity)<-[r:INPUT]-(b:Event) merge (a)-[s:INPUT]->(b) delete r return count(a)
+
+* add :TO relationships between adjacent PhysicalEntities and also Events
+match (s:PhysicalEntity)-[si:INPUT]->(r:Event)-[po:OUTPUT]->(p:PhysicalEntity) merge (s)-[:TO]->(p) return count(*)
+match (r1:Event)-[:OUTPUT]->(p:PhysicalEntity)-[:INPUT]->(r2:Event) where not (p.name =~ 'H2O.*' or p.name =~ 'Pi.*' or p.name =~ 'ATP.*' or p.name =~ 'ADP.*' or p.name =~ 'AMP.*' or p.name=~ 'H\\+.*' or p.name=~ 'PPi.*' or p.name=~ 'L-Glu.*' or p.name=~ '2OG.*' or p.name=~ 'NAD.*' or p.name=~ 'CoA.*' or p.name =~ 'NH3.*' or p.name =~ 'THF.*' or p.name =~ 'UDP-Glc.*' or p.name =~ 'AdoMet.*' or p.name =~ 'AdoHcy.*') merge (r1)-[:TO{linkedBy:p.name}]->(r2) return count(*) as num_links
+
+* hmm... maybe let's flag those special cases as common metabolites...
+match (p:PhysicalEntity) where (p.name =~ 'H2O.*' or p.name =~ 'Pi.*' or p.name =~ 'ATP.*' or p.name =~ 'ADP.*' or p.name =~ 'AMP.*' or p.name=~ 'H\\+.*' or p.name=~ 'PPi.*' or p.name=~ 'L-Glu.*' or p.name=~ '2OG.*' or p.name=~ 'NAD.*' or p.name=~ 'CoA.*' or p.name =~ 'NH3.*' or p.name =~ 'THF.*' or p.name =~ 'UDP-Glc.*' or p.name =~ 'AdoMet.*' or p.name =~ 'AdoHcy.*') set p.common = true return count(*) as num_common
+
+* oops... got some false common ones.
+match (p:PhysicalEntity) where p.common = true and p.name =~ '.*ase.*' return p.name
+
+* lets unset the common flag on those and another one i found by inspecting the list
+match (p:PhysicalEntity) where p.common = true and p.name =~ '.*ase.*' remove p.common return p
+match (p:PhysicalEntity{name:'UDP-GlcNAc-enolpyruvate [cytosol]'}) remove p.common return p
+
+* let's remove the :TO relationships and add them again
+match ()-[r:TO]-() delete r
+>>>>>>> External Changes
+=======
+All rather incomplete and unsatisfying.
+
+
+NEXT, I wrote import.groovy to bulk import the entire database systematically.
+
+
+Then I fixed it up as follows:
+* switch direction of :INPUT rships
+match (a:PhysicalEntity)<-[r:INPUT]-(b:Event) merge (a)-[s:INPUT]->(b) delete r return count(a)
+
+* add :TO relationships between adjacent PhysicalEntities and also Events
+match (s:PhysicalEntity)-[si:INPUT]->(r:Event)-[po:OUTPUT]->(p:PhysicalEntity) merge (s)-[:TO]->(p) return count(*)
+match (r1:Event)-[:OUTPUT]->(p:PhysicalEntity)-[:INPUT]->(r2:Event) where not (p.name =~ 'H2O.*' or p.name =~ 'Pi.*' or p.name =~ 'ATP.*' or p.name =~ 'ADP.*' or p.name =~ 'AMP.*' or p.name=~ 'H\\+.*' or p.name=~ 'PPi.*' or p.name=~ 'L-Glu.*' or p.name=~ '2OG.*' or p.name=~ 'NAD.*' or p.name=~ 'CoA.*' or p.name =~ 'NH3.*' or p.name =~ 'THF.*' or p.name =~ 'UDP-Glc.*' or p.name =~ 'AdoMet.*' or p.name =~ 'AdoHcy.*') merge (r1)-[:TO{linkedBy:p.name}]->(r2) return count(*) as num_links
+
+* hmm... maybe let's flag those special cases as common metabolites...
+match (p:PhysicalEntity) where (p.name =~ 'H2O.*' or p.name =~ 'Pi.*' or p.name =~ 'ATP.*' or p.name =~ 'ADP.*' or p.name =~ 'AMP.*' or p.name=~ 'H\\+.*' or p.name=~ 'PPi.*' or p.name=~ 'L-Glu.*' or p.name=~ '2OG.*' or p.name=~ 'NAD.*' or p.name=~ 'CoA.*' or p.name =~ 'NH3.*' or p.name =~ 'THF.*' or p.name =~ 'UDP-Glc.*' or p.name =~ 'AdoMet.*' or p.name =~ 'AdoHcy.*') set p.common = true return count(*) as num_common
+
+* oops... got some false common ones.
+match (p:PhysicalEntity) where p.common = true and p.name =~ '.*ase.*' return p.name
+
+* lets unset the common flag on those and another one i found by inspecting the list
+match (p:PhysicalEntity) where p.common = true and p.name =~ '.*ase.*' remove p.common return p
+match (p:PhysicalEntity{name:'UDP-GlcNAc-enolpyruvate [cytosol]'}) remove p.common return p
+
+* let's remove the :TO relationships and add them again
+match ()-[r:TO]-() delete r
+match (s:PhysicalEntity)-[si:INPUT]->(r:Event)-[po:OUTPUT]->(p:PhysicalEntity) where not (has(s.common) or has(p.common)) merge (s)-[:TO{linkedBy:r.name}]->(p) return count(*)
+>>>>>>> External Changes
+=======
+All rather incomplete and unsatisfying.
+
+
+NEXT, I wrote import.groovy to bulk import the entire database systematically.
+
+
+Then I fixed it up as follows:
+* switch direction of :INPUT rships
+match (a:PhysicalEntity)<-[r:INPUT]-(b:Event) merge (a)-[s:INPUT]->(b) delete r return count(a)
+
+* add :TO relationships between adjacent PhysicalEntities and also Events
+match (s:PhysicalEntity)-[si:INPUT]->(r:Event)-[po:OUTPUT]->(p:PhysicalEntity) merge (s)-[:TO]->(p) return count(*)
+match (r1:Event)-[:OUTPUT]->(p:PhysicalEntity)-[:INPUT]->(r2:Event) where not (p.name =~ 'H2O.*' or p.name =~ 'Pi.*' or p.name =~ 'ATP.*' or p.name =~ 'ADP.*' or p.name =~ 'AMP.*' or p.name=~ 'H\\+.*' or p.name=~ 'PPi.*' or p.name=~ 'L-Glu.*' or p.name=~ '2OG.*' or p.name=~ 'NAD.*' or p.name=~ 'CoA.*' or p.name =~ 'NH3.*' or p.name =~ 'THF.*' or p.name =~ 'UDP-Glc.*' or p.name =~ 'AdoMet.*' or p.name =~ 'AdoHcy.*') merge (r1)-[:TO{linkedBy:p.name}]->(r2) return count(*) as num_links
+
+* hmm... maybe let's flag those special cases as common metabolites...
+match (p:PhysicalEntity) where (p.name =~ 'H2O.*' or p.name =~ 'Pi.*' or p.name =~ 'ATP.*' or p.name =~ 'ADP.*' or p.name =~ 'AMP.*' or p.name=~ 'H\\+.*' or p.name=~ 'PPi.*' or p.name=~ 'L-Glu.*' or p.name=~ '2OG.*' or p.name=~ 'NAD.*' or p.name=~ 'CoA.*' or p.name =~ 'NH3.*' or p.name =~ 'THF.*' or p.name =~ 'UDP-Glc.*' or p.name =~ 'AdoMet.*' or p.name =~ 'AdoHcy.*') set p.common = true return count(*) as num_common
+match (s:PhysicalEntity) where not has(s.common) set s.common = false return count(s)
+
+* oops... got some false common ones.
+match (p:PhysicalEntity) where p.common = true and p.name =~ '.*ase.*' return p.name
+
+* lets unset the common flag on those and another one i found by inspecting the list
+match (p:PhysicalEntity) where p.common = true and p.name =~ '.*ase.*' remove p.common return p
+match (p:PhysicalEntity{name:'UDP-GlcNAc-enolpyruvate [cytosol]'}) remove p.common return p
+
+* let's remove the :TO relationships and add them again
+match ()-[r:TO]-() delete r
+match (s:PhysicalEntity)-[si:INPUT]->(r:Event)-[po:OUTPUT]->(p:PhysicalEntity) where not (has(s.common) or has(p.common)) merge (s)-[:TO{linkedBy:r.name}]->(p) return count(*)
+>>>>>>> External Changes
+=======
+All rather incomplete and unsatisfying.
+
+
+NEXT, I wrote import.groovy to bulk import the entire database systematically.
+
+
+Then I fixed it up as follows:
+* switch direction of :INPUT rships
+match (a:PhysicalEntity)<-[r:INPUT]-(b:Event) merge (a)-[s:INPUT]->(b) delete r return count(a)
+
+* add :TO relationships between adjacent PhysicalEntities and also Events
+match (s:PhysicalEntity)-[si:INPUT]->(r:Event)-[po:OUTPUT]->(p:PhysicalEntity) merge (s)-[:TO]->(p) return count(*)
+match (r1:Event)-[:OUTPUT]->(p:PhysicalEntity)-[:INPUT]->(r2:Event) where not (p.name =~ 'H2O.*' or p.name =~ 'Pi.*' or p.name =~ 'ATP.*' or p.name =~ 'ADP.*' or p.name =~ 'AMP.*' or p.name=~ 'H\\+.*' or p.name=~ 'PPi.*' or p.name=~ 'L-Glu.*' or p.name=~ '2OG.*' or p.name=~ 'NAD.*' or p.name=~ 'CoA.*' or p.name =~ 'NH3.*' or p.name =~ 'THF.*' or p.name =~ 'UDP-Glc.*' or p.name =~ 'AdoMet.*' or p.name =~ 'AdoHcy.*') merge (r1)-[:TO{linkedBy:p.name}]->(r2) return count(*) as num_links
+
+* hmm... maybe let's flag those special cases as common metabolites...
+match (p:PhysicalEntity) where (p.name =~ 'H2O.*' or p.name =~ 'Pi.*' or p.name =~ 'ATP.*' or p.name =~ 'ADP.*' or p.name =~ 'AMP.*' or p.name=~ 'H\\+.*' or p.name=~ 'PPi.*' or p.name=~ 'L-Glu.*' or p.name=~ '2OG.*' or p.name=~ 'NAD.*' or p.name=~ 'CoA.*' or p.name =~ 'NH3.*' or p.name =~ 'THF.*' or p.name =~ 'UDP-Glc.*' or p.name =~ 'AdoMet.*' or p.name =~ 'AdoHcy.*') and not p.name =~ '.*ase.*' and not p.name = 'UDP-GlcNAc-enolpyruvate [cytosol]' set p.common = true return count(*) as num_common;
+
+* oops... got some false common ones.
+match (p:PhysicalEntity) where p.common = true and p.name =~ '.*ase.*' return p.name
+
+* lets unset the common flag on those and another one i found by inspecting the list
+match (p:PhysicalEntity) where p.common = true and p.name =~ '.*ase.*' remove p.common return p
+match (p:PhysicalEntity{name:'UDP-GlcNAc-enolpyruvate [cytosol]'}) remove p.common return p
+
+match (s:PhysicalEntity) where not has(s.common) set s.common = false return count(s)
+
+* let's remove the :TO relationships and add them again
+match ()-[r:TO]-() delete r
+
+match (s:PhysicalEntity)-[si:INPUT]->(r:Event)-[po:OUTPUT]->(p:PhysicalEntity) where s.common = false and p.common = false merge (s)-[:TO]->(p) return count(*)
+
+match (r1:Event)-[:OUTPUT]->(p:PhysicalEntity)-[:INPUT]->(r2:Event) where p.common = false merge (r1)-[:TO]->(r2) return count(*) as num_links
+
+* Ok, now we can traverse the graph!
+match (g:Name{name:'Glc6P'})<-[:NAME]-(ge:SimpleEntity), (p:Name{name:'Pyruvate'})<-[:NAME]-(pe:SimpleEntity), x=shortestPath( (ge)-[:TO*..10]->(pe) ) return g,ge,p,pe,x
+
+match (g:Name{name:'Glc6P'})<-[:NAME]-(ge:SimpleEntity), (p:Name{name:'Citrate'})<-[:NAME]-(pe:SimpleEntity), x=(ge)-[:TO*..20]->(pe) return g,ge,p,pe,x
+
+* Use the UNWIND and WITH keywords to enable interrogation of found intermediate nodes
+match (g:Name{name:'Glc6P'})<-[:NAME]-(ge:SimpleEntity), (p:Name{name:'Pyruvate'})<-[:NAME]-(pe:SimpleEntity), x=shortestPath( (ge)-[:TO*..10]->(pe) ) unwind nodes(x) as pathFrom unwind nodes(x) as pathTo with pathFrom, pathTo, g, p match (pathFrom)-[:INPUT]->(r:Reaction)-[:OUTPUT]->(pathTo), (r)-[:SPECIES]->(s:Species) return g,p,pathFrom, pathTo, r, s limit 10
+
+* Unfortunately we rapidly descend into the land of graph bushes. 
+* We need to create some convenience intermediate nodes between metabolites
+match (a:SimpleEntity)-[:TO]->(b:SimpleEntity), (a)-[:INPUT]->(r:Event)-[:OUTPUT]->(b), (r)-[:SPECIES]->(s:Species) create (to:To) merge (a)-[:VIA]->(to) merge (to)-[:VIA]->(b) merge (to)-[:RXN]->(r) merge (to)-[:SPECIES]->(s)   return count(to)
+
+* ... and between reactions and gene products
+match (to:Reaction)-[:CATALYST_ACTIVITY]->(:CatalystActivity)-[:PHYSICAL_ENTITY]->(phys:PhysicalEntity), geneProductPath=(phys)-[:HAS_MEMBER|REFERENCE_ENTITY*..3]->(gp:ReferenceGeneProduct) create (to)-[:ENCODED_BY]->(gp) return count(*);
+

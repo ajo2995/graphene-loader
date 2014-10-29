@@ -1,0 +1,26 @@
+auto-index id name
+
+import-cypher -d , -q -i /Users/mulvaney/devel/graphy/reactome_42/db/DatabaseObject.csv -o /Users/mulvaney/devel/graphy/reactome_42/load-out/DatabaseObject.csv create (n:#{_class} {id:{DB_ID}, name:{_displayName}}) return n.name as name
+
+import-cypher -d , -q -i /Users/mulvaney/devel/graphy/reactome_42/db/GO_BiologicalProcess_2_componentOf.csv -o /Users/mulvaney/devel/graphy/reactome_42/load-out/GO_BiologicalProcess_2_componentOf.csv start n1=node:node_auto_index(id={DB_ID}), n2=node:node_auto_index(id={componentOf}) create unique n1-[:COMPONENT_OF{rank:{componentOf_rank}}]->n2 return n1.name, n2.name
+
+import-cypher -d , -q -i /Users/mulvaney/devel/graphy/reactome_42/db/GO_BiologicalProcess_2_hasPart.csv -o /Users/mulvaney/devel/graphy/reactome_42/load-out/GO_BiologicalProcess_2_hasPart.csv start n1=node:node_auto_index(id={DB_ID}), n2=node:node_auto_index(id={hasPart}) create unique n1-[:HAS_PART{rank:{hasPart_rank}}]->n2 return n1.name, n2.name
+
+import-cypher -d , -q -i /Users/mulvaney/devel/graphy/reactome_42/db/GO_BiologicalProcess_2_instanceOf.csv -o /Users/mulvaney/devel/graphy/reactome_42/load-out/GO_BiologicalProcess_2_instanceOf.csv start n1=node:node_auto_index(id={DB_ID}), n2=node:node_auto_index(id={instanceOf}) create unique n1-[:INSTANCE_OF{rank:{instanceOf_rank}}]->n2 return n1.name, n2.name
+
+import-cypher -d , -q -i /Users/mulvaney/devel/graphy/reactome_42/db/GO_CellularComponent_2_componentOf.csv -o /Users/mulvaney/devel/graphy/reactome_42/load-out/GO_CellularComponent_2_componentOf.csv start n1=node:node_auto_index(id={DB_ID}), n2=node:node_auto_index(id={componentOf}) create unique n1-[:COMPONENT_OF{rank:{componentOf_rank}}]->n2 return n1.name, n2.name
+
+import-cypher -d , -q -i /Users/mulvaney/devel/graphy/reactome_42/db/GO_CellularComponent_2_hasPart.csv -o /Users/mulvaney/devel/graphy/reactome_42/load-out/GO_CellularComponent_2_hasPart.csv start n1=node:node_auto_index(id={DB_ID}), n2=node:node_auto_index(id={hasPart}) create unique n1-[:HAS_PART{rank:{hasPart_rank}}]->n2 return n1.name, n2.name
+
+import-cypher -d , -q -i /Users/mulvaney/devel/graphy/reactome_42/db/GO_CellularComponent_2_instanceOf.csv -o /Users/mulvaney/devel/graphy/reactome_42/load-out/GO_CellularComponent_2_instanceOf.csv start n1=node:node_auto_index(id={DB_ID}), n2=node:node_auto_index(id={instanceOf}) create unique n1-[:INSTANCE_OF{rank:{instanceOf_rank}}]->n2 return n1.name, n2.name
+
+
+import-cypher -d , -q -i /Users/mulvaney/devel/graphy/reactome_42/db/GO_MolecularFunction_2_componentOf.csv -o /Users/mulvaney/devel/graphy/reactome_42/load-out/GO_MolecularFunction_2_componentOf.csv start n1=node:node_auto_index(id={DB_ID}), n2=node:node_auto_index(id={componentOf}) create unique n1-[:COMPONENT_OF{rank:{componentOf_rank}}]->n2 return n1.name, n2.name
+
+import-cypher -d , -q -i /Users/mulvaney/devel/graphy/reactome_42/db/GO_MolecularFunction_2_hasPart.csv -o /Users/mulvaney/devel/graphy/reactome_42/load-out/GO_MolecularFunction_2_hasPart.csv start n1=node:node_auto_index(id={DB_ID}), n2=node:node_auto_index(id={hasPart}) create unique n1-[:HAS_PART{rank:{hasPart_rank}}]->n2 return n1.name, n2.name
+
+import-cypher -d , -q -i /Users/mulvaney/devel/graphy/reactome_42/db/GO_MolecularFunction_2_instanceOf.csv -o /Users/mulvaney/devel/graphy/reactome_42/load-out/GO_MolecularFunction_2_instanceOf.csv start n1=node:node_auto_index(id={DB_ID}), n2=node:node_auto_index(id={instanceOf}) create unique n1-[:INSTANCE_OF{rank:{instanceOf_rank}}]->n2 return n1.name, n2.name
+
+import-cypher -d , -q -i /Users/mulvaney/devel/graphy/reactome_42/db/Regulation.csv -o /Users/mulvaney/devel/graphy/reactome_42/load-out/Regulation.csv start reg=node:node_auto_index(id={DB_ID}), obj=node:node_auto_index(id={regulatedEntity}), sub=node:node_auto_index(id={regulator}) create unique sub-[r:REGULATES {regulationType:labels(reg)[0]} ]->obj delete reg return sub.name, r.regulationType, obj.name
+
+import-cypher -d , -q -i /Users/mulvaney/devel/graphy/reactome_42/db/Taxon_2_crossReference.csv -o /Users/mulvaney/devel/graphy/reactome_42/load-out/Taxon_2_crossReference.csv start n=node:node_auto_index(id={DB_ID}), m=node:node_auto_index(id={crossReference}) set n.xref = m.name delete m return labels(n), n.name

@@ -14,3 +14,4 @@ match (to:Reaction)-[:CATALYST_ACTIVITY]->(:CatalystActivity)-[:PHYSICAL_ENTITY]
 
 match (i:PhysicalEntity{common:false})-[:INPUT]->(r:Reaction)-[:OUTPUT]->(o:PhysicalEntity{common:false}), (i)-[:INPUT]->(r2:Event)-[:OUTPUT]->(o) merge (r)-[:METABOLITE_LINK]->(r2);
 
+create index on :ReferenceSequence(identifier)

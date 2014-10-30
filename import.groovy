@@ -32,6 +32,9 @@ File dir = new File("db")
 // Keep track of all the labels that we create. This is important because we need to add indices to them at the end.
 Map<String, Label> labelCache = [:].withDefault { String s -> DynamicLabel.label(s) }
 
+// If we create new nodes
+Map<Label, Map<String, Long>> newNodeCache = [:].withDefault { [:] }
+
 // First add all the nodes from the DatabaseObject table export. These define most of the nodes in the graph, since
 // it's a star schema.
 loadNodesOrDie(batch, labelCache)
@@ -40,52 +43,23 @@ loadNodesOrDie(batch, labelCache)
 // we try to add a relation to them.
 loadOneToManyRelationshipsFromNodeTable(batch)
 
-
 // Given a directory of csv files for every table in the reactome mysql database,
 // 1. List them
 Map<String, List<File>> files = getAndOrganizeFilesFrom(dir)
 
-// If we create new nodes
-Map<Label, Map<String, Long>> newNodeCache = [:].withDefault { [:] }
-
 // OK let's deal with the "decorators". These define properties on nodes and relationships to other nodes.
 // They also define a new "type" (in neo4j parlance, a `label`) that we will assign to the nodes.
-processDecoratorData(files, labelCache, batch)
+processDecoratorData(files.decorators, labelCache, batch)
 
 // So here we need to possibly create a new node if it hasn't already been created, and then add the
 // relationship to the referenced node.
-processFilesThatRequireNewNodes(files, labelCache, newNodeCache, batch)
+processFilesThatRequireNewNodes(files.newnodes, labelCache, newNodeCache, batch)
 
 // Here we just need to create a relationship between two existing nodes
-for(File f in files.relationships) {
-    println f.name
-    def data = parseCsv(f.newReader())
-    def cols = data.columns
-    assert cols.size() == 4
+processFilesThatRelateNodes(files.relationships, batch)
 
-    def rships = findRelationships(cols.keySet())
-    def props = findProps(cols.keySet(), rships)
-    assert rships.size() == 1
-    assert props.size() == 0
-
-    Integer lineNum = 1;
-    for(def line in data) {
-        ++lineNum
-        long id = getId(line)
-        if(!id) {
-            println "  No id on line $lineNum of $f.name; ignoring line"
-            continue
-        }
-
-        addRelationships(batch, id, line, rships)
-    }
-    println "  processed $lineNum lines when adding relationships"
-}
-
-for(Label l in labelCache.values()) {
-    println "Indexing ${l.name()} on 'name'"
-    batch.createDeferredSchemaIndex(l).on("name").create();
-}
+// Index labels and add constraints
+indexAndUniqueOnNamePropertyForAllLabels(labelCache.values(), batch)
 
 batch.shutdown()
 
@@ -102,7 +76,7 @@ private loadNodesOrDie(BatchInserter batch, Map<String, Label> labelCache) {
             Long id = Long.valueOf(line.DB_ID)
             Map props = [name: line._displayName]
             Label label = labelCache[line._class]
-            batch.createNode(id, props, label)
+            batch.createNode(id, props, labelCache.Reactome, label)
             if (++count % 100_000 == 0) {
                 println count
             }
@@ -119,14 +93,13 @@ private loadNodesOrDie(BatchInserter batch, Map<String, Label> labelCache) {
 private loadOneToManyRelationshipsFromNodeTable(BatchInserter batch) {
     if (true) {
         def data = parseCsv(new File("db/DatabaseObject.csv").newReader())
-        def rships = findRelationships(data.columns)
-        assert rships.size() == 2
-        assert rships.contains('created')
-        assert rships.contains('stableIdentifier')
+        Set<String> cols = data.columns.keySet()
+        assert cols.contains('created')
+        assert cols.contains('stableIdentifier')
 
         for (def line in data) {
             Long id = Long.valueOf(line.DB_ID)
-            addRelationships(batch, id, line, rships)
+            addRelationships(batch, id, line, ['created', 'stableIdentifier'])
         }
     }
 }
@@ -164,8 +137,8 @@ long getId(line) {
     Long.valueOf(line.DB_ID)
 }
 
-private processDecoratorData(Map<String, List<File>> files, Map<String, Label> labelCache, BatchInserter batch) {
-    for (File f in files.decorators) {
+private processDecoratorData(List<File> decorators, Map<String, Label> labelCache, BatchInserter batch) {
+    for (File f in decorators) {
         println f.name
         Label additionalLabel = labelCache[f.name[0..-5]]
         def data = parseCsv(f.newReader())
@@ -202,8 +175,8 @@ private processDecoratorData(Map<String, List<File>> files, Map<String, Label> l
     }
 }
 
-private processFilesThatRequireNewNodes(Map<String, List<File>> files, Map<String, Label> labelCache, Map<Label, Map<String, Long>> newNodeCache, BatchInserter batch) {
-    for (File f in files.newnodes) {
+private processFilesThatRequireNewNodes(List<File> newnodes, Map<String, Label> labelCache, Map<Label, Map<String, Long>> newNodeCache, BatchInserter batch) {
+    for (File f in newnodes) {
         println f.name
         def data = parseCsv(f.newReader())
         def cols = data.columns.keySet()
@@ -230,10 +203,8 @@ private processFilesThatRequireNewNodes(Map<String, List<File>> files, Map<Strin
 
             Long newNodeId = newNodeCache[label][name]
             if (!newNodeId) {
-                newNodeId = batch.createNode([name: name], label)
+                newNodeId = batch.createNode([name: name], labelCache.Reactome, label)
                 newNodeCache[label][name] = newNodeId
-            } else {
-                println "Got node $newNodeId from cache"
             }
 
             String rshipName = camelCaseToConstantCase(prop)
@@ -243,6 +214,39 @@ private processFilesThatRequireNewNodes(Map<String, List<File>> files, Map<Strin
     }
 }
 
+private processFilesThatRelateNodes(List<File> relationships, BatchInserter batch) {
+    for (File f in relationships) {
+        println f.name
+        def data = parseCsv(f.newReader())
+        def cols = data.columns
+        assert cols.size() == 4
+
+        def rships = findRelationships(cols.keySet())
+        def props = findProps(cols.keySet(), rships)
+        assert rships.size() == 1
+        assert props.size() == 0
+
+        Integer lineNum = 1;
+        for (def line in data) {
+            ++lineNum
+            long id = getId(line)
+            if (!id) {
+                println "  No id on line $lineNum of $f.name; ignoring line"
+                continue
+            }
+
+            addRelationships(batch, id, line, rships)
+        }
+        println "  processed $lineNum lines when adding relationships"
+    }
+}
+
+private indexAndUniqueOnNamePropertyForAllLabels(Collection<Label> labels, BatchInserter batch) {
+    for (Label l in labels) {
+        println "Indexing ${l.name()} on 'name'"
+        batch.createDeferredSchemaIndex(l).on("name").create();
+    }
+}
 
 
 def addLabel(BatchInserter batch, long id, Label label) {

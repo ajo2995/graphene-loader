@@ -1,3 +1,5 @@
+import groovy.json.JsonSlurper
+
 @Grab('org.neo4j:neo4j:2.1.4')
 
 // I installed neo4j using homebrew
@@ -13,4 +15,14 @@ Map config = [
         "dump_config": "true"
 ]
 
+String server = "http://brie.cshl.edu:3000/"
+String path = 'taxonomy/select'
+Integer start = 0
+Integer rows = 5
+JsonSlurper jsonSlurper = new JsonSlurper()
 
+String url = sprintf('%1$s%2$s?start=%3$d&rows=%4$d', server, path, start, rows)
+def contents = jsonSlurper.parse(url.toURL())
+List results = contents.response
+
+println results

@@ -1,5 +1,5 @@
-import com.google.common.collect.BiMap
-import com.google.common.collect.HashBiMap
+package graphene
+
 import org.neo4j.graphdb.DynamicLabel
 import org.neo4j.graphdb.Label
 import org.neo4j.graphdb.RelationshipType
@@ -11,7 +11,7 @@ class Importer {
     private final NodeCache nodeCache = NodeCache.instance
     private final LabelCache labelCache = LabelCache.instance
     private final BatchInserter batch
-//    private Collection<Loader> dataLoaders = [new ReactomeLoader()]
+//    private Collection<graphene.Loader> dataLoaders = [new graphene.ReactomeLoader()]
     private Collection<Loader> dataLoaders = [NCBITaxonLoader.instance]
 
     public Importer(Map config, File dbLocation) {

@@ -1,3 +1,5 @@
+package graphene
+
 import org.neo4j.unsafe.batchinsert.BatchInserter
 
 interface Loader {

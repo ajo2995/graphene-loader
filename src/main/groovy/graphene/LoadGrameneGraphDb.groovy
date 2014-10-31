@@ -1,3 +1,5 @@
+package graphene
+
 class LoadGrameneGraphDb {
 
     final File store

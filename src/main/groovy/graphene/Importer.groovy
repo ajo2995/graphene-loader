@@ -80,10 +80,3 @@ class Importer {
         DynamicLabel.label(s)
     }
 }
-
-// to store relations to nodes that don't exist yet
-class Rel {
-    long from
-    long to
-    RelationshipType type
-}

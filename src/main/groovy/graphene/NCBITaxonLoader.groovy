@@ -9,34 +9,18 @@ import static graphene.Rels.*
 @Singleton
 class NCBITaxonLoader extends GrameneMongoLoader implements Loader {
 
-    final String path = 'taxonomy/select'
+    @Override
+    String getPath() { 'taxonomy' }
 
     @Override
     void process(Map taxon) {
-        preprocessTaxon(taxon)
-        createOrAugmentTaxon(taxon)
-    }
+//        taxon.remove('xref') // these don't seem to be useful
 
-    static preprocessTaxon(Map taxon) {
-        taxon.remove('_terms')
-        taxon.remove('ancestors')
-        taxon.remove('namespace')
-        taxon.remove('xref') // these don't seem to be useful
-        taxon.synonym = getSynonyms(taxon.remove('synonym'))
-        taxon.taxonId = getTaxonId(taxon.remove('_id'))
-        taxon.is_a = getTaxonId(taxon.remove('is_a'))
-
-        Matcher rankMatcher = taxon.remove('property_value') =~ /has_rank NCBITaxon:(\w+)/
-        if (rankMatcher) {
-            taxon.rank = (rankMatcher[0][1])?.capitalize()
-        }
-    }
-
-    void createOrAugmentTaxon(Map taxon) {
-        Label[] nodeLabels = labels.subMap(['Taxon', taxon.rank, 'NCBITaxonomy'].findAll { it }).values() as Label[]
-        Long taxonId = taxon.taxonId
+        List<String> xrefs = taxon.remove('xref')
+        Label[] nodeLabels = labels.getLabels(['Taxon', taxon.rank, 'NCBITaxonomy'])
+        Long taxonId = taxon._id
         Set<String> synonyms = taxon.remove('synonym')
-        Long parentTaxonId = taxon.remove('is_a')
+        Long parentTaxonId = parentTaxonId(taxon)
         List<Long> altIds = taxon.remove('alt_id')
 
         Long nodeId = node(taxonId, labels.Taxon, taxon, nodeLabels)
@@ -44,6 +28,7 @@ class NCBITaxonLoader extends GrameneMongoLoader implements Loader {
         createSynonyms(nodeId, synonyms)
         if (parentTaxonId != null) link(nodeId, parentTaxonId, SUPER_TAXON)
 
+        createXrefs(nodeId, xrefs)
         if (altIds) {
             for (Long altTaxonId in altIds) {
                 link(nodeId, altTaxonId, ALT_ID)
@@ -51,11 +36,17 @@ class NCBITaxonLoader extends GrameneMongoLoader implements Loader {
         }
     }
 
-    static Long getTaxonId(def taxonId) {
-        if (taxonId instanceof Collection) {
-            taxonId = taxonId[0]
+    static Long parentTaxonId(taxon) {
+        def is_a = taxon.remove('is_a')
+        if(is_a) {
+            if(is_a instanceof Collection && is_a.size()) {
+                return is_a[0]
+            }
+            else {
+                return is_a
+            }
         }
-        taxonId
+        null
     }
 
 }

@@ -1,18 +1,21 @@
 package graphene
 
 import groovy.json.JsonSlurper
+import groovy.transform.EqualsAndHashCode
 import org.neo4j.graphdb.Label
 import org.neo4j.graphdb.RelationshipType
 import org.neo4j.unsafe.batchinsert.BatchInserter
 
-import static graphene.Rels.SYNONYM
+import java.util.regex.Matcher
+
+import static graphene.Rels.*
 
 /**
  * Created by mulvaney on 10/31/14.
  */
 abstract class GrameneMongoLoader implements Loader {
 
-    static final String SERVER = "http://brie.cshl.edu:3000/"
+    static final String URL_TEMPLATE = 'http://brie.cshl.edu:3000/%1$s/select?start=%2$d&rows=%3$d'
     static final Integer ROWS = 200
 
     static final JsonSlurper JSON_SLURPER = new JsonSlurper()
@@ -21,14 +24,15 @@ abstract class GrameneMongoLoader implements Loader {
     NodeCache nodes
     LabelCache labels
 
-    private List<Rel> relationships = []
+    private Set<Rel> relationships = []
     private Map<Long, Long> externalIdToNeoId = [:]
 
     abstract void process(Map result)
+    abstract String getPath()
 
-    long node(long taxonId, Label label, Map taxon, Label[] nodeLabels) {
-        Long nodeId = nodes.augmentOrCreate(label, taxon, nodeLabels, batch)
-        externalIdToNeoId[taxonId] = nodeId
+    long node(long externalId, Label label, Map nodeProps, Label[] nodeLabels) {
+        Long nodeId = nodes.augmentOrCreate(label, nodeProps, nodeLabels, batch)
+        externalIdToNeoId[externalId] = nodeId
         nodeId
     }
 
@@ -45,17 +49,17 @@ abstract class GrameneMongoLoader implements Loader {
         externalIdToNeoId[taxonId]
     }
 
-    def parseJSON(String path, Integer start) {
-        URL url = createUrl(path, start)
+    private def parseJSON(Integer start) {
+        URL url = createUrl(start)
         parseJSON(url)
     }
 
-    static def parseJSON(URL url) {
+    static private def parseJSON(URL url) {
         JSON_SLURPER.parse(url)
     }
 
-    URL createUrl(String path, Integer start) {
-        sprintf('%1$s%2$s?start=%3$d&rows=%4$d', SERVER, path, start, ROWS).toURL()
+    private URL createUrl(Integer start) {
+        sprintf(URL_TEMPLATE, getPath(), start, ROWS).toURL()
     }
 
     @Override
@@ -67,8 +71,9 @@ abstract class GrameneMongoLoader implements Loader {
         Integer start = 0
 
         while(true) {
-            def contents = parseJSON(path, start)
+            def contents = parseJSON(start)
             for (Map taxon in contents.response) {
+               preprocess(taxon)
                process(taxon)
             }
             start += ROWS
@@ -76,6 +81,19 @@ abstract class GrameneMongoLoader implements Loader {
         }
 
         after()
+    }
+
+    static preprocess(Map entry) {
+        entry.remove('_terms')
+        entry.remove('alt_id')
+        entry.remove('ancestors')
+        entry.remove('namespace')
+        entry.synonym = getSynonyms(entry.remove('synonym'))
+
+        Matcher rankMatcher = entry.remove('property_value') =~ /has_rank NCBITaxon:(\w+)/
+        if (rankMatcher) {
+            entry.rank = (rankMatcher[0][1])?.capitalize()
+        }
     }
 
     void after() {
@@ -109,13 +127,37 @@ abstract class GrameneMongoLoader implements Loader {
             batch.createRelationship(nodeId, synonymNodeId, SYNONYM, Collections.emptyMap())
         }
     }
+
+    static String underscoreCaseToCamelCase(String s) {
+        s?.toLowerCase()?.split('_')*.capitalize()?.join('')
+    }
+
+    def createXrefs(long nodeId, List<String> xrefs) {
+        for(String xref in xrefs) {
+            def (String key, String value) = xref.split(':', 2)
+            createXref(key, value, nodeId)
+        }
+    }
+
+    def createXref(String type, String name, Long referrerId) {
+        Label[] allLabels = labels.getLabels([type, 'Xref'])
+        Map props = [name:name, id:name, type:type]
+        if(type == 'Reactome' || type == 'VZ') {
+            props.id = props.id.split(' ')[0]
+        }
+
+        Long xrefId = node(referrerId, labels[type], props, allLabels)
+        batch.createRelationship(referrerId, xrefId, XREF, Collections.emptyMap())
+    }
 }
 
 enum Rels implements RelationshipType {
-    SUPER_TAXON, ALT_ID, SYNONYM
+    SUPER_TAXON, ALT_ID, SYNONYM, XREF,
+    INTERSECTION // logical intersection, see http://geneontology.org/page/ontology-structure search for 'cross-products'
 }
 
 // to store relations to nodes that don't exist yet
+@EqualsAndHashCode
 class Rel {
     long fromNodeId
     long toExternalId // we don't necessarily know the node id for the to side of a relationship. use GrameneMongoLoader#getNeoNodeId when all the nodes are loaded

@@ -12,7 +12,7 @@ class Importer {
     private final LabelCache labelCache = LabelCache.instance
     private final BatchInserter batch
 //    private Collection<graphene.Loader> dataLoaders = [new graphene.ReactomeLoader()]
-    private Collection<Loader> dataLoaders = [NCBITaxonLoader.instance]
+    private Collection<Loader> dataLoaders = [NCBITaxonLoader.instance, GOLoader.instance]
 
     public Importer(Map config, File dbLocation) {
         try {
@@ -68,7 +68,7 @@ class Importer {
                 batch.setNodeProperty(result, prop, val)
             }
         }
-        batch.setNodeLabels(result, allLabels)
+        if(allLabels) batch.setNodeLabels(result, allLabels)
         return result
     }
 }
@@ -78,5 +78,9 @@ class Importer {
             throw new RuntimeException("Don't try to get an empty or null label.")
         }
         DynamicLabel.label(s)
+    }
+
+    Label[] getLabels(Collection<String> labels) {
+        this.subMap(labels.findAll { it }).values() as Label[]
     }
 }

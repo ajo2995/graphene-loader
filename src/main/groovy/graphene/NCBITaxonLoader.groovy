@@ -2,9 +2,8 @@ package graphene
 
 import org.neo4j.graphdb.Label
 
-import java.util.regex.Matcher
-
-import static graphene.Rels.*
+import static graphene.Rels.ALT_ID
+import static graphene.Rels.SUPER_TAXON
 
 @Singleton
 class NCBITaxonLoader extends GrameneMongoLoader implements Loader {

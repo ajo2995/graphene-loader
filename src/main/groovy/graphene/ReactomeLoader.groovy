@@ -1,11 +1,13 @@
 package graphene
 
+import groovy.util.logging.Log4j
 import org.neo4j.graphdb.DynamicRelationshipType
 import org.neo4j.graphdb.Label
 import org.neo4j.unsafe.batchinsert.BatchInserter
 
 import static com.xlson.groovycsv.CsvParser.parseCsv
 
+@Log4j
 class ReactomeLoader implements Loader {
 
     final Map<String, List<File>> files
@@ -55,13 +57,13 @@ class ReactomeLoader implements Loader {
                 Label label = labelCache[line._class]
                 batch.createNode(id, props, labelCache.Reactome, label)
                 if (++count % 100_000 == 0) {
-                    println count
+                    log.info count
                 }
             }
 
-            println "$count nodes inserted"
+            log.info "$count nodes inserted"
         } else {
-            println "Nodes already loaded. Should run this on an empty db."
+            log.info "Nodes already loaded. Should run this on an empty db."
             batch.shutdown()
             System.exit(1)
         }
@@ -113,13 +115,13 @@ class ReactomeLoader implements Loader {
 
     private processDecoratorData(List<File> decorators, Map<String, Label> labelCache, BatchInserter batch) {
         for (File f in decorators) {
-            println f.name
+            log.info f.name
             Label additionalLabel = labelCache[f.name[0..-5]]
             def data = parseCsv(f.newReader())
             Map cols = data.columns
 
             if (cols.size() == 0) {
-                println "  $f.name has no columns; ignoring file"
+                log.info "  $f.name has no columns; ignoring file"
                 continue
             }
 
@@ -132,7 +134,7 @@ class ReactomeLoader implements Loader {
                 long id = getId(line)
 
                 if (!id) {
-                    println "  No id on line $lineNum of $f.name; ignoring line"
+                    log.info "  No id on line $lineNum of $f.name; ignoring line"
                     continue
                 }
 
@@ -145,14 +147,14 @@ class ReactomeLoader implements Loader {
                 // add relationships
                 addRelationships(batch, id, line, rships)
             }
-            println "  processed $lineNum lines when processing decorators"
+            log.info "  processed $lineNum lines when processing decorators"
         }
     }
 
     static
     private processFilesThatRequireNewNodes(List<File> newnodes, Map<String, Label> labelCache, Map<Label, Map<String, Long>> newNodeCache, BatchInserter batch) {
         for (File f in newnodes) {
-            println f.name
+            log.info f.name
             def data = parseCsv(f.newReader())
             def cols = data.columns.keySet()
 
@@ -170,7 +172,7 @@ class ReactomeLoader implements Loader {
                 long id = getId(line)
 
                 if (!id) {
-                    println "No id on line $lineNum of $f.name; ignoring line"
+                    log.info "No id on line $lineNum of $f.name; ignoring line"
                     continue
                 }
 
@@ -185,13 +187,13 @@ class ReactomeLoader implements Loader {
                 String rshipName = camelCaseToConstantCase(prop)
                 batch.createRelationship(id, newNodeId, DynamicRelationshipType.withName(rshipName), [rank: line[prop + '_rank']])
             }
-            println "  processed $lineNum lines when creating new nodes"
+            log.info "  processed $lineNum lines when creating new nodes"
         }
     }
 
     static private processFilesThatRelateNodes(List<File> relationships, BatchInserter batch) {
         for (File f in relationships) {
-            println f.name
+            log.info f.name
             def data = parseCsv(f.newReader())
             def cols = data.columns
             assert cols.size() == 4
@@ -206,13 +208,13 @@ class ReactomeLoader implements Loader {
                 ++lineNum
                 long id = getId(line)
                 if (!id) {
-                    println "  No id on line $lineNum of $f.name; ignoring line"
+                    log.info "  No id on line $lineNum of $f.name; ignoring line"
                     continue
                 }
 
                 addRelationships(batch, id, line, rships)
             }
-            println "  processed $lineNum lines when adding relationships"
+            log.info "  processed $lineNum lines when adding relationships"
         }
     }
 
@@ -269,7 +271,7 @@ class ReactomeLoader implements Loader {
         }.collect {
             it[0..-7]
         }
-        if (rships) println "  Found relationships $rships"
+        if (rships) log.info "  Found relationships $rships"
         rships
     }
 
@@ -285,7 +287,7 @@ class ReactomeLoader implements Loader {
         result = result.findAll { String col -> !(col.contains('_')) }
         // this is a groovy method that doesn't mutate the collection, so we need to reassign
 
-        if (result) println "  Found props $result"
+        if (result) log.info "  Found props $result"
         result
     }
 }

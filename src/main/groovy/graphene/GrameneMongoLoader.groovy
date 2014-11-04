@@ -2,17 +2,20 @@ package graphene
 
 import groovy.json.JsonSlurper
 import groovy.transform.EqualsAndHashCode
+import groovy.util.logging.Log4j
 import org.neo4j.graphdb.Label
 import org.neo4j.graphdb.RelationshipType
 import org.neo4j.unsafe.batchinsert.BatchInserter
 
 import java.util.regex.Matcher
 
-import static graphene.Rels.*
+import static graphene.Rels.SYNONYM
+import static graphene.Rels.XREF
 
 /**
  * Created by mulvaney on 10/31/14.
  */
+@Log4j
 abstract class GrameneMongoLoader implements Loader {
 
     static final String URL_TEMPLATE = 'http://brie.cshl.edu:3000/%1$s/select?start=%2$d&rows=%3$d'
@@ -103,7 +106,7 @@ abstract class GrameneMongoLoader implements Loader {
                 throw new RuntimeException("Node $r.fromNodeId doesn't exist (from)")
             }
             if (parentId == null || !batch.nodeExists(parentId)) {
-                System.out.println("Node $parentId doesn't exist (to). Ignoring relationship from $r.fromNodeId of type $r.type")
+                log.info("Node $parentId doesn't exist (to). Ignoring relationship from $r.fromNodeId of type $r.type")
             } else {
                 batch.createRelationship(r.fromNodeId, parentId, r.type, Collections.emptyMap())
             }
@@ -134,16 +137,20 @@ abstract class GrameneMongoLoader implements Loader {
 
     def createXrefs(long nodeId, List<String> xrefs) {
         for(String xref in xrefs) {
-            def (String key, String value) = xref.split(':', 2)
-            createXref(key, value, nodeId)
+            if(xref.indexOf(':') > 0) {
+                def (String key, String value) = xref.split(':', 2)
+                if(key != 'GC_ID') createXref(key, value, nodeId)
+            }
         }
     }
 
     def createXref(String type, String name, Long referrerId) {
         Label[] allLabels = labels.getLabels([type, 'Xref'])
-        Map props = [name:name, id:name, type:type]
+        Map props = [name:name, type:type]
         if(type == 'Reactome' || type == 'VZ') {
-            props.id = props.id.split(' ')[0]
+            String[] splitt = props.name.split(' ', 2)
+            props.name = splitt[0]
+            if(splitt.length > 1) props.desc = splitt[1]
         }
 
         Long xrefId = node(referrerId, labels[type], props, allLabels)

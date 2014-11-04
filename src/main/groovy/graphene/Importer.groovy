@@ -1,18 +1,21 @@
 package graphene
 
+import groovy.util.logging.Log4j
 import org.neo4j.graphdb.DynamicLabel
 import org.neo4j.graphdb.Label
-import org.neo4j.graphdb.RelationshipType
 import org.neo4j.unsafe.batchinsert.BatchInserter
 import org.neo4j.unsafe.batchinsert.BatchInserters
 
+@Log4j
 class Importer {
 
     private final NodeCache nodeCache = NodeCache.instance
     private final LabelCache labelCache = LabelCache.instance
     private final BatchInserter batch
-//    private Collection<graphene.Loader> dataLoaders = [new graphene.ReactomeLoader()]
-    private Collection<Loader> dataLoaders = [NCBITaxonLoader.instance, GOLoader.instance]
+
+    private Set<Loader> dataLoaders = [new ReactomeLoader(), NCBITaxonLoader.instance, GOLoader.instance, TOLoader.instance,
+                                        POLoader.instance, SOLoader.instance, EOLoader.instance,
+                                        GROLoader.instance]
 
     public Importer(Map config, File dbLocation) {
         try {
@@ -26,13 +29,13 @@ class Importer {
         }
         finally {
             batch?.shutdown()
-            println "Shutdown."
+            log.info "Shutdown."
         }
     }
 
     private indexOnNamePropertyForAllLabels() {
         for (Label l in labelCache.values()) {
-            println "Indexing ${l.name()} on 'name'"
+            log.info "Indexing ${l.name()} on 'name'"
             batch.createDeferredSchemaIndex(l).on("name").create();
         }
     }
@@ -42,7 +45,9 @@ class Importer {
     }
 }
 
-@Singleton class NodeCache implements Map<Label, Map<String, Long>> {
+@Log4j
+@Singleton
+class NodeCache implements Map<Label, Map<String, Long>> {
     @Delegate Map<Label, Map<String, Long>> delegate = [:].withDefault { [:] }
 
     Long getOrCreate(Label label, String name, BatchInserter batch) {
@@ -62,7 +67,7 @@ class Importer {
         for(def prop in props.keySet()) {
             def val = props[prop]
             if(val instanceof Collection) {
-                System.out.println("Can't add a Collection as a property. We got $val with key $prop")
+                log.info "Can't add a Collection as a property. We got $val with key $prop"
             }
             else {
                 batch.setNodeProperty(result, prop, val)
@@ -72,8 +77,11 @@ class Importer {
         return result
     }
 }
-@Singleton class LabelCache implements Map<String, Label> {
+@Log4j
+@Singleton
+class LabelCache implements Map<String, Label> {
     @Delegate Map<String, Label> delegate = [:].withDefault { String s ->
+        log.info "Creating label $s"
         if(!s) {
             throw new RuntimeException("Don't try to get an empty or null label.")
         }

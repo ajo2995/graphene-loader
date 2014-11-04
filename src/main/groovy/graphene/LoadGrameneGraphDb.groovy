@@ -20,7 +20,6 @@ class LoadGrameneGraphDb {
             store = args.head()
         } else {
             store = File.createTempDir("tmpgraph",".db").absolutePath
-//            store = "/usr/local/Cellar/neo4j/2.1.5/libexec/data/graph.db"
         }
 
         new LoadGrameneGraphDb(store)

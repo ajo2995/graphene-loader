@@ -2,7 +2,7 @@ package graphene
 
 import groovy.json.JsonSlurper
 import groovy.transform.EqualsAndHashCode
-import groovy.util.logging.Log4j
+import groovy.util.logging.Log4j2
 import org.neo4j.graphdb.Label
 import org.neo4j.graphdb.RelationshipType
 import org.neo4j.unsafe.batchinsert.BatchInserter
@@ -15,42 +15,16 @@ import static graphene.Rels.XREF
 /**
  * Created by mulvaney on 10/31/14.
  */
-@Log4j
-abstract class GrameneMongoLoader implements Loader {
+@Log4j2
+abstract class GrameneMongoLoader extends Loader {
 
     static final String URL_TEMPLATE = 'http://brie.cshl.edu:3000/%1$s/select?start=%2$d&rows=%3$d'
     static final Integer ROWS = 200
 
     static final JsonSlurper JSON_SLURPER = new JsonSlurper()
 
-    BatchInserter batch
-    NodeCache nodes
-    LabelCache labels
-
-    private Set<Rel> relationships = []
-    private Map<Long, Long> externalIdToNeoId = [:]
-
     abstract void process(Map result)
     abstract String getPath()
-
-    long node(long externalId, Label label, Map nodeProps, Label[] nodeLabels) {
-        Long nodeId = nodes.augmentOrCreate(label, nodeProps, nodeLabels, batch)
-        externalIdToNeoId[externalId] = nodeId
-        nodeId
-    }
-
-    void link(Long nodeId, Long parentExternalId, RelationshipType type) {
-        Long parentId = externalIdToNeoId[parentExternalId]
-        if (parentId != null && batch.nodeExists(parentId)) {
-            batch.createRelationship(nodeId, parentId, type, Collections.emptyMap())
-        } else {
-            relationships.add(new Rel(fromNodeId: nodeId, toExternalId: parentExternalId, type: type))
-        }
-    }
-
-    Long getNeoNodeId(Long taxonId) {
-        externalIdToNeoId[taxonId]
-    }
 
     private def parseJSON(Integer start) {
         URL url = createUrl(start)
@@ -66,11 +40,7 @@ abstract class GrameneMongoLoader implements Loader {
     }
 
     @Override
-    void load(BatchInserter batchInserter, NodeCache nodeCache, LabelCache labelCache) {
-        batch = batchInserter
-        nodes = nodeCache
-        labels = labelCache
-
+    void load() {
         Integer start = 0
 
         while(true) {
@@ -82,8 +52,6 @@ abstract class GrameneMongoLoader implements Loader {
             start += ROWS
             if(start > contents.count) break
         }
-
-        after()
     }
 
     static preprocess(Map entry) {
@@ -95,21 +63,7 @@ abstract class GrameneMongoLoader implements Loader {
 
         Matcher rankMatcher = entry.remove('property_value') =~ /has_rank NCBITaxon:(\w+)/
         if (rankMatcher) {
-            entry.rank = (rankMatcher[0][1])?.capitalize()
-        }
-    }
-
-    void after() {
-        for (Rel r in relationships) {
-            Long parentId = getNeoNodeId(r.toExternalId)
-            if (!batch.nodeExists(r.fromNodeId)) {
-                throw new RuntimeException("Node $r.fromNodeId doesn't exist (from)")
-            }
-            if (parentId == null || !batch.nodeExists(parentId)) {
-                log.info("Node $parentId doesn't exist (to). Ignoring relationship from $r.fromNodeId of type $r.type")
-            } else {
-                batch.createRelationship(r.fromNodeId, parentId, r.type, Collections.emptyMap())
-            }
+            entry.rank = ((List<String>)rankMatcher[0])[1]?.capitalize()  // explicit cast to fail early if we didn't get any match groups
         }
     }
 
@@ -127,7 +81,7 @@ abstract class GrameneMongoLoader implements Loader {
         Label nameLabel = labels.Name
         for (String s in synonyms) {
             long synonymNodeId = nodes.getOrCreate(nameLabel, s, batch)
-            batch.createRelationship(nodeId, synonymNodeId, SYNONYM, Collections.emptyMap())
+            link(nodeId, synonymNodeId, SYNONYM)
         }
     }
 
@@ -154,7 +108,7 @@ abstract class GrameneMongoLoader implements Loader {
         }
 
         Long xrefId = node(referrerId, labels[type], props, allLabels)
-        batch.createRelationship(referrerId, xrefId, XREF, Collections.emptyMap())
+        link(referrerId, xrefId, XREF)
     }
 }
 
@@ -167,6 +121,6 @@ enum Rels implements RelationshipType {
 @EqualsAndHashCode
 class Rel {
     long fromNodeId
-    long toExternalId // we don't necessarily know the node id for the to side of a relationship. use GrameneMongoLoader#getNeoNodeId when all the nodes are loaded
+    def toExternalId // we don't necessarily know the node id for the to side of a relationship. use GrameneMongoLoader#getNeoNodeId when all the nodes are loaded
     RelationshipType type
 }

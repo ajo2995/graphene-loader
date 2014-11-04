@@ -1,6 +1,6 @@
 package graphene
 
-import groovy.util.logging.Log4j
+import groovy.util.logging.Log4j2
 import org.neo4j.graphdb.DynamicRelationshipType
 import org.neo4j.graphdb.Label
 import org.neo4j.graphdb.RelationshipType
@@ -10,7 +10,7 @@ import java.util.regex.Matcher
 /**
  * Created by mulvaney on 11/3/14.
  */
-@Log4j
+@Log4j2
 abstract class OntologyLoader extends GrameneMongoLoader {
 
     private final String ONTOLOGY_RELATIONSHIP_PATTERN = /([a-z_]+) $path:0*(\d+) ! (.*)/
@@ -56,12 +56,12 @@ abstract class OntologyLoader extends GrameneMongoLoader {
         rels.each{ String relName, Collection<Long> relOntologyIds ->
             RelationshipType relType = DynamicRelationshipType.withName(relName.toUpperCase())
             for(Long relOntologyId in relOntologyIds) {
-                link(nodeId, relOntologyId, relType)
+                linkToExternal(nodeId, relOntologyId, relType)
             }
         }
     }
 
-    Map<String, Collection<Long>> findOtherRelations(Map<String, ?> oNode) {
+    static Map<String, Collection<Long>> findOtherRelations(Map<String, ?> oNode) {
         oNode.findAll{ String k, v -> v instanceof Collection }.each{ oNode.remove(it.key) }
     }
 
@@ -90,7 +90,7 @@ abstract class OntologyLoader extends GrameneMongoLoader {
     def createIntersections(long nodeId, List intersections) {
         if(!intersections) return
         def (Long id, String name) = intersections
-        link(nodeId, id, Rels.INTERSECTION)
+        linkToExternal(nodeId, id, Rels.INTERSECTION)
         createRelationshipFromString(name, nodeId)
     }
 
@@ -100,7 +100,7 @@ abstract class OntologyLoader extends GrameneMongoLoader {
             def (_, String type, String oIdStr) = Matcher.lastMatcher[0]
             Long oId = Long.valueOf(oIdStr, 10)
             RelationshipType relType = DynamicRelationshipType.withName(type.toUpperCase())
-            link(nodeId, oId, relType)
+            linkToExternal(nodeId, oId, relType)
         }
     }
     String namespace(String namespace) {

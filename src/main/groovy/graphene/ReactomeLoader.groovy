@@ -1,14 +1,14 @@
 package graphene
 
-import groovy.util.logging.Log4j
+import groovy.util.logging.Log4j2
 import org.neo4j.graphdb.DynamicRelationshipType
 import org.neo4j.graphdb.Label
 import org.neo4j.unsafe.batchinsert.BatchInserter
 
 import static com.xlson.groovycsv.CsvParser.parseCsv
 
-@Log4j
-class ReactomeLoader implements Loader {
+@Log4j2
+class ReactomeLoader extends Loader {
 
     final Map<String, List<File>> files
 
@@ -24,29 +24,29 @@ class ReactomeLoader implements Loader {
     }
 
     @Override
-    void load(BatchInserter batch, NodeCache nodeCache, LabelCache labelCache) {
+    void load() {
 // First add all the nodes from the DatabaseObject table export. These define most of the nodes in the graph, since
 // it's a star schema.
-        loadNodesOrDie(batch, labelCache)
+        loadNodesOrDie()
 
 // then read the file again and add relationships. This is the lazy way to ensure that the nodes have been created before
 // we try to add a relation to them.
-        loadOneToManyRelationshipsFromNodeTable(batch)
+        loadOneToManyRelationshipsFromNodeTable()
 
 // OK let's deal with the "decorators". These define properties on nodes and relationships to other nodes.
 // They also define a new "type" (in neo4j parlance, a `label`) that we will assign to the nodes.
-        processDecoratorData(files.decorators, labelCache, batch)
+        processDecoratorData(files.decorators)
 
 // So here we need to possibly create a new node if it hasn't already been created, and then add the
 // relationship to the referenced node.
-        processFilesThatRequireNewNodes(files.newnodes, labelCache, nodeCache, batch)
+        processFilesThatRequireNewNodes(files.newnodes)
 
 // Here we just need to create a relationship between two existing nodes
-        processFilesThatRelateNodes(files.relationships, batch)
+        processFilesThatRelateNodes(files.relationships)
 
     }
 
-    static private loadNodesOrDie(BatchInserter batch, Map<String, Label> labelCache) {
+    private loadNodesOrDie() {
         if (!batch.nodeExists(1)) {
             def data = parseCsv(new File("db/DatabaseObject.csv").newReader())
             Long count = 0
@@ -54,8 +54,8 @@ class ReactomeLoader implements Loader {
                 // we are
                 Long id = getId(line)
                 Map props = [name: line._displayName]
-                Label label = labelCache[line._class]
-                batch.createNode(id, props, labelCache.Reactome, label)
+                Label label = labels[line._class]
+                nodeWithId(id, props, label, labels.Reactome)
                 if (++count % 100_000 == 0) {
                     log.info count
                 }
@@ -69,7 +69,7 @@ class ReactomeLoader implements Loader {
         }
     }
 
-    static private loadOneToManyRelationshipsFromNodeTable(BatchInserter batch) {
+    private loadOneToManyRelationshipsFromNodeTable() {
         def data = parseCsv(new File("db/DatabaseObject.csv").newReader())
         Set<String> cols = data.columns.keySet()
         assert cols.contains('created')
@@ -77,7 +77,7 @@ class ReactomeLoader implements Loader {
 
         for (def line in data) {
             Long id = getId(line)
-            addRelationships(batch, id, line, ['created', 'stableIdentifier'])
+            addRelationships(id, line, ['created', 'stableIdentifier'])
         }
     }
 
@@ -113,10 +113,10 @@ class ReactomeLoader implements Loader {
         Long.valueOf((String)line.DB_ID)
     }
 
-    private processDecoratorData(List<File> decorators, Map<String, Label> labelCache, BatchInserter batch) {
+    private processDecoratorData(List<File> decorators) {
         for (File f in decorators) {
             log.info f.name
-            Label additionalLabel = labelCache[f.name[0..-5]]
+            Label additionalLabel = labels[f.name[0..-5]]
             def data = parseCsv(f.newReader())
             Map cols = data.columns
 
@@ -139,20 +139,20 @@ class ReactomeLoader implements Loader {
                 }
 
                 // add new label
-                addLabel(batch, id, additionalLabel)
+                addLabel(id, additionalLabel)
 
                 // add properties
-                addProperties(batch, id, line, props)
+                addProperties(id, line, props)
 
                 // add relationships
-                addRelationships(batch, id, line, rships)
+                addRelationships(id, line, rships)
             }
             log.info "  processed $lineNum lines when processing decorators"
         }
     }
 
-    static
-    private processFilesThatRequireNewNodes(List<File> newnodes, Map<String, Label> labelCache, Map<Label, Map<String, Long>> newNodeCache, BatchInserter batch) {
+
+    private processFilesThatRequireNewNodes(List<File> newnodes) {
         for (File f in newnodes) {
             log.info f.name
             def data = parseCsv(f.newReader())
@@ -164,7 +164,7 @@ class ReactomeLoader implements Loader {
             String prop = props.head()
             assert cols.contains(prop + '_rank')
 
-            Label label = labelCache[prop.capitalize()]
+            Label label = labels[prop.capitalize()]
 
             Integer lineNum = 0
             for (def line in data) {
@@ -172,26 +172,26 @@ class ReactomeLoader implements Loader {
                 long id = getId(line)
 
                 if (!id) {
-                    log.info "No id on line $lineNum of $f.name; ignoring line"
+                    log.error "No id on line $lineNum of $f.name; $line; ignoring line"
                     continue
                 }
 
                 String name = line[prop]
-
-                Long newNodeId = newNodeCache[label][name]
-                if (!newNodeId) {
-                    newNodeId = batch.createNode([name: name], labelCache.Reactome, label)
-                    newNodeCache[label][name] = newNodeId
+                if(!name) {
+                    log.error("Name is empty for $lineNum of $f.name; $line; ignoring line")
+                    continue
                 }
 
+                Long newNodeId = node(label, [name: name], label, labels.Reactome)
+
                 String rshipName = camelCaseToConstantCase(prop)
-                batch.createRelationship(id, newNodeId, DynamicRelationshipType.withName(rshipName), [rank: line[prop + '_rank']])
+                link(id, newNodeId, DynamicRelationshipType.withName(rshipName), [rank: line[prop + '_rank']])
             }
             log.info "  processed $lineNum lines when creating new nodes"
         }
     }
 
-    static private processFilesThatRelateNodes(List<File> relationships, BatchInserter batch) {
+    private processFilesThatRelateNodes(List<File> relationships) {
         for (File f in relationships) {
             log.info f.name
             def data = parseCsv(f.newReader())
@@ -212,13 +212,13 @@ class ReactomeLoader implements Loader {
                     continue
                 }
 
-                addRelationships(batch, id, line, rships)
+                addRelationships(id, line, rships)
             }
             log.info "  processed $lineNum lines when adding relationships"
         }
     }
 
-    static def addLabel(BatchInserter batch, long id, Label label) {
+    def addLabel(long id, Label label) {
         Iterable<Label> currentLabels = batch.getNodeLabels(id)
         Set<Label> newLabels = new LinkedHashSet<Label>()
         for (Label l : currentLabels) newLabels.add(l)
@@ -226,7 +226,7 @@ class ReactomeLoader implements Loader {
         batch.setNodeLabels(id, (Label[]) newLabels)
     }
 
-    static def addProperties(batch, id, line, List<String> props) {
+    def addProperties(long id, line, List<String> props) {
         for (String prop in props) {
             if (line[prop] && line[prop] != 'NULL') {
                 batch.setNodeProperty(id, prop, line[prop])
@@ -234,7 +234,7 @@ class ReactomeLoader implements Loader {
         }
     }
 
-    static def addRelationships(batch, id, line, List<String> rships) {
+    def addRelationships(long id, line, List<String> rships) {
         for (String rship in rships) {
             if (line[rship] && line[rship] != 'NULL') {
                 long relation = Long.valueOf(line[rship])
@@ -253,7 +253,7 @@ class ReactomeLoader implements Loader {
 
                     relProps = Collections.emptyMap()
                 }
-                batch.createRelationship(id, relation, DynamicRelationshipType.withName(neoRshipName), relProps)
+                link(id, relation, DynamicRelationshipType.withName(neoRshipName), relProps)
             }
         }
     }
@@ -265,7 +265,7 @@ class ReactomeLoader implements Loader {
 
 // convention seems to be that all relationships have two cols, one named <rship> and the other named <rship>_class.
 // former contains referent DB_ID, latter contains class. We can look for "_class" props to identify relationships
-    static def findRelationships(Set<String> colNames) {
+    def findRelationships(Set<String> colNames) {
         def rships = colNames.findAll {
             it =~ /_class$/
         }.collect {
@@ -275,7 +275,7 @@ class ReactomeLoader implements Loader {
         rships
     }
 
-    static List<String> findProps(Set<String> colNames, List<String> rships = Collections.emptyList()) {
+    List<String> findProps(Set<String> colNames, List<String> rships = Collections.emptyList()) {
         List<String> result = new ArrayList(colNames) // explicit instantiate because we're using java remove* methods
 
         // remove relationship props and the special `DB_ID` one

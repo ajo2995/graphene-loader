@@ -6,15 +6,13 @@ import static graphene.Rels.ALT_ID
 import static graphene.Rels.SUPER_TAXON
 
 @Singleton
-class NCBITaxonLoader extends GrameneMongoLoader implements Loader {
+class NCBITaxonLoader extends GrameneMongoLoader {
 
     @Override
     String getPath() { 'taxonomy' }
 
     @Override
     void process(Map taxon) {
-//        taxon.remove('xref') // these don't seem to be useful
-
         List<String> xrefs = taxon.remove('xref')
         Label[] nodeLabels = labels.getLabels(['Taxon', taxon.rank, 'NCBITaxonomy'])
         Long taxonId = taxon._id
@@ -25,12 +23,12 @@ class NCBITaxonLoader extends GrameneMongoLoader implements Loader {
         Long nodeId = node(taxonId, labels.Taxon, taxon, nodeLabels)
 
         createSynonyms(nodeId, synonyms)
-        if (parentTaxonId != null) link(nodeId, parentTaxonId, SUPER_TAXON)
+        if (parentTaxonId != null) linkToExternal(nodeId, parentTaxonId, SUPER_TAXON)
 
         createXrefs(nodeId, xrefs)
         if (altIds) {
             for (Long altTaxonId in altIds) {
-                link(nodeId, altTaxonId, ALT_ID)
+                linkToExternal(nodeId, altTaxonId, ALT_ID)
             }
         }
     }

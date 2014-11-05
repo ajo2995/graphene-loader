@@ -14,7 +14,7 @@ class NCBITaxonLoader extends GrameneMongoLoader {
     @Override
     void process(Map taxon) {
         List<String> xrefs = taxon.remove('xref')
-        Label[] nodeLabels = labels.getLabels(['Taxon', taxon.rank, 'NCBITaxonomy'])
+        Collection<Label> nodeLabels = labels.getLabels(['Taxon', taxon.rank, 'NCBITaxonomy'])
         Long taxonId = taxon._id
         Set<String> synonyms = taxon.remove('synonym')
         Long parentTaxonId = parentTaxonId(taxon)

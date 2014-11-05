@@ -1,5 +1,6 @@
 package graphene
 
+import groovy.transform.EqualsAndHashCode
 import org.neo4j.graphdb.Label
 import org.neo4j.graphdb.RelationshipType
 import org.neo4j.unsafe.batchinsert.BatchInserter
@@ -26,6 +27,10 @@ abstract class Loader {
     }
 
     void after() {
+        addDeferredRelationships()
+    }
+
+    private addDeferredRelationships() {
         for (Rel r in uncreatedRelationships) {
             Long parentId = externalIdToNeoId[r.toExternalId]
             if (!batch.nodeExists(r.fromNodeId)) {
@@ -39,17 +44,17 @@ abstract class Loader {
         }
     }
 
-    // Only for Reactome because it's special. it must always be run first and its database ids are set to be neo's ids
+    // Only for Reactome because it's special: It must always be run first because its database ids are set to be neo's ids
     void nodeWithId(long externalId, Map nodeProps, Label... labels) {
         nodes.create(labels[0], externalId, nodeProps, batch)
         batch.setNodeLabels(externalId, labels)
     }
 
-    long node(Label label, Map nodeProps, Label[] nodeLabels = []) {
+    long node(Label label, Map nodeProps, Collection<Label> nodeLabels = []) {
         nodes.augmentOrCreate(label, nodeProps, nodeLabels, batch)
     }
 
-    long node(long externalId, Label label, Map nodeProps, Label[] nodeLabels = []) {
+    long node(long externalId, Label label, Map nodeProps, Collection<Label> nodeLabels = []) {
         Long nodeId = node(label, nodeProps, nodeLabels)
         externalIdToNeoId[externalId] = nodeId
         nodeId
@@ -79,6 +84,18 @@ abstract class Loader {
     protected LabelCache getLabels() {
         return labels
     }
+}
 
+enum Rels implements RelationshipType {
+    SUPER_TAXON, ALT_ID, SYNONYM, XREF,
+    INTERSECTION, // logical intersection, see http://geneontology.org/page/ontology-structure search for 'cross-products'
+    CONTRIBUTES_TO
+}
 
+// to store relations to nodes that don't exist yet
+@EqualsAndHashCode
+class Rel {
+    long fromNodeId
+    def toExternalId // we don't necessarily know the node id for the to side of a relationship. use GrameneMongoLoader#getNeoNodeId when all the nodes are loaded
+    RelationshipType type
 }

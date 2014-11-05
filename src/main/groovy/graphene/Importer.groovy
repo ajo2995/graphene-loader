@@ -13,7 +13,7 @@ class Importer {
     private final LabelCache labelCache = LabelCache.instance
     private final BatchInserter batch
 
-    private Set<Loader> dataLoaders = [new ReactomeLoader(), EOLoader.instance, GOLoader.instance, GROLoader.instance,
+    private Set<Loader> dataLoaders = [ new ReactomeLoader(), EOLoader.instance, GOLoader.instance, GROLoader.instance,
                                        POLoader.instance, SOLoader.instance, TOLoader.instance,
                                        NCBITaxonLoader.instance, DomainLoader.instance]
 
@@ -34,9 +34,19 @@ class Importer {
     }
 
     private indexOnNamePropertyForAllLabels() {
-        for (Label l in labelCache.values()) {
+        Collection<Label> uniqueLabels = nodeCache.labelsWithUniqueNames()
+        Collection<Label> nonUniqueLabels = labelCache.labels() - uniqueLabels
+
+        for(Label l in uniqueLabels) {
+            log.info "Adding unique constraint to ${l.name()} on 'name'"
+            batch.createDeferredConstraint(l).assertPropertyIsUnique('name').create()
+        }
+
+        for (Label l in nonUniqueLabels) {
             log.info "Indexing ${l.name()} on 'name'"
             batch.createDeferredSchemaIndex(l).on("name").create();
+            batch.createDeferredSchemaIndex(l).on("id").create();
+            batch.createDeferredSchemaIndex(l).on("_id").create();
         }
     }
 
@@ -65,7 +75,7 @@ class NodeCache implements Map<Label, Map<String, Long>> {
         result
     }
 
-    Long augmentOrCreate(Label l, Map<String, ?> props, Label[] allLabels, BatchInserter batch) {
+    Long augmentOrCreate(Label l, Map<String, ?> props, Collection<Label> labels, BatchInserter batch) {
         if(!props?.name) {
             throw new RuntimeException("One property needs to be `name`. We got the following props: $props")
         }
@@ -80,9 +90,20 @@ class NodeCache implements Map<Label, Map<String, Long>> {
                 batch.setNodeProperty(result, prop, val)
             }
         }
-        if(allLabels) batch.setNodeLabels(result, allLabels)
+        if(labels) {
+            Label[] allLabels
+            if(labels.contains(l)) {
+                allLabels = labels
+            }
+            else {
+                allLabels = [l] + labels
+            }
+            batch.setNodeLabels(result, allLabels)
+        }
         return result
     }
+
+    Set<Label> labelsWithUniqueNames() { new LinkedHashSet<Label>(delegate.keySet()) }
 }
 @Log4j2
 @Singleton
@@ -95,7 +116,11 @@ class LabelCache implements Map<String, Label> {
         DynamicLabel.label(s)
     }
 
-    Label[] getLabels(Collection<String> labels) {
-        delegate.subMap(labels.findAll { it }).values() as Label[]
+    Set<Label> labels() {
+        new LinkedHashSet<Label>(delegate.values())
+    }
+
+    Set<Label> getLabels(Collection<String> labels) {
+        new LinkedHashSet<Label>(delegate.subMap(labels.findAll { it }).values())
     }
 }

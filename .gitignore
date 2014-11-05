@@ -2,3 +2,7 @@ db
 load-out
 gradle
 gradlew*
+.gradle
+.idea
+build
+out

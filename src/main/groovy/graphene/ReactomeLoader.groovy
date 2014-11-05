@@ -182,7 +182,7 @@ class ReactomeLoader extends Loader {
                     continue
                 }
 
-                Long newNodeId = node(label, [name: name], label, labels.Reactome)
+                Long newNodeId = node(label, [name: name], [labels.Reactome])
 
                 String rshipName = camelCaseToConstantCase(prop)
                 link(id, newNodeId, DynamicRelationshipType.withName(rshipName), [rank: line[prop + '_rank']])

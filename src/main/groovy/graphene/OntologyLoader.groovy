@@ -19,7 +19,7 @@ abstract class OntologyLoader extends GrameneMongoLoader {
     void process(Map oNode) {
         oNode.remove('def') // it's a bit long
 
-        Long id = oNode.remove('_id')
+        Long id = oNode['_id']
 
         if(oNode.is_obsolete) {
             log.info "Ignoring obsolete node $oNode"
@@ -33,7 +33,7 @@ abstract class OntologyLoader extends GrameneMongoLoader {
         String namespace = namespace(oNode.remove('namespace'))
         List<String> subsets = oNode.remove('subset')
 
-        Label[] oLabels = getOntologyNodeLabels(namespace, subsets)
+        Collection<Label> oLabels = getOntologyNodeLabels(namespace, subsets)
         Set<String> synonyms = oNode.remove('synonym')
         List<String> xrefs = oNode.remove('xref')
         List<String> relationships = oNode.remove('relationship')
@@ -65,7 +65,7 @@ abstract class OntologyLoader extends GrameneMongoLoader {
         oNode.findAll{ String k, v -> v instanceof Collection }.each{ oNode.remove(it.key) }
     }
 
-    Label[] getOntologyNodeLabels(namespace, subsets) {
+    Collection<Label> getOntologyNodeLabels(namespace, subsets) {
         List labelStrings = [ path, namespace ]
         if(subsets) {
             for(String subset in subsets) {

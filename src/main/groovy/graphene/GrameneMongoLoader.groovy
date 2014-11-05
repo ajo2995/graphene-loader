@@ -99,9 +99,10 @@ abstract class GrameneMongoLoader extends Loader {
     }
 
     def createXref(String type, String name, Long referrerId) {
-        Label[] allLabels = labels.getLabels([type, 'Xref'])
+        Collection<Label> allLabels = labels.getLabels([type, 'Xref'])
         Map props = [name:name, type:type]
-        if(type == 'Reactome' || type == 'VZ') {
+
+        if(['Reactome', 'VZ', 'http', 'loinc'].contains(type)) {
             String[] splitt = props.name.split(' ', 2)
             props.name = splitt[0]
             if(splitt.length > 1) props.desc = splitt[1]
@@ -110,17 +111,4 @@ abstract class GrameneMongoLoader extends Loader {
         Long xrefId = node(referrerId, labels[type], props, allLabels)
         link(referrerId, xrefId, XREF)
     }
-}
-
-enum Rels implements RelationshipType {
-    SUPER_TAXON, ALT_ID, SYNONYM, XREF,
-    INTERSECTION // logical intersection, see http://geneontology.org/page/ontology-structure search for 'cross-products'
-}
-
-// to store relations to nodes that don't exist yet
-@EqualsAndHashCode
-class Rel {
-    long fromNodeId
-    def toExternalId // we don't necessarily know the node id for the to side of a relationship. use GrameneMongoLoader#getNeoNodeId when all the nodes are loaded
-    RelationshipType type
 }

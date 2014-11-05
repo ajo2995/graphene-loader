@@ -120,6 +120,11 @@ class ReactomeLoader extends Loader {
             def data = parseCsv(f.newReader())
             Map cols = data.columns
 
+            if(additionalLabel.name() == 'DatabaseIdentifier') {
+                cols.name = cols.remove('identifier')
+                data.columns = cols = cols.sort{ it.value }
+            }
+
             if (cols.size() == 0) {
                 log.info "  $f.name has no columns; ignoring file"
                 continue
@@ -127,6 +132,7 @@ class ReactomeLoader extends Loader {
 
             List<String> rships = findRelationships(cols.keySet())
             List<String> props = findProps(cols.keySet(), rships)
+
             Integer lineNum = 1;
             for (def line in data) {
                 ++lineNum;
@@ -249,7 +255,10 @@ class ReactomeLoader extends Loader {
                 else {
                     String relName = rship + 'Name'
                     String relNameValue = batch.getNodeProperties(relation).name
-                    batch.setNodeProperty(id, relName, relNameValue)
+                    // work around some weird exception when calling batch.setNodeProperty(id, relName, relNameValue)
+                    Map nodeProps = batch.getNodeProperties(id)
+                    nodeProps[relName] = relNameValue
+                    batch.setNodeProperties(id, nodeProps)
 
                     relProps = Collections.emptyMap()
                 }

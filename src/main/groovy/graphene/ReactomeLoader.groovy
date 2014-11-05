@@ -234,8 +234,12 @@ class ReactomeLoader extends Loader {
 
     def addProperties(long id, line, List<String> props) {
         for (String prop in props) {
-            if (line[prop] && line[prop] != 'NULL') {
-                batch.setNodeProperty(id, prop, line[prop])
+            def propVal = line[prop]
+            if (line[prop] && propVal != 'NULL') {
+                if(propVal ==~ /\d+/) {
+                    propVal = Integer.parseInt(propVal, 10)
+                }
+                batch.setNodeProperty(id, prop, propVal)
             }
         }
     }

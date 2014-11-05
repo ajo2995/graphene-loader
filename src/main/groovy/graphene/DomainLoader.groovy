@@ -19,7 +19,7 @@ class DomainLoader extends GrameneMongoLoader {
 
         log.info nodeprops
 
-        long interproNodeId = node(labels.InterPro, nodeprops, labels[nodeprops.type])
+        long interproNodeId = node(labels.InterPro, nodeprops, [labels[nodeprops.type]])
 
         for(Map.Entry<String, Object> domain in domainDescriptors) {
             if(!(domain.value instanceof Collection)) {

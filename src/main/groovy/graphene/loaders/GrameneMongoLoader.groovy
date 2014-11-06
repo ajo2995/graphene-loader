@@ -1,13 +1,13 @@
-package graphene
+package graphene.loaders
 
+import com.mongodb.DBCollection
+import com.mongodb.DBCursor
+import graphene.mongo.Mongo
 import groovy.json.JsonSlurper
 import groovy.util.logging.Log4j2
 import org.neo4j.graphdb.Label
 
 import java.util.regex.Matcher
-
-import static graphene.Rels.SYNONYM
-import static graphene.Rels.XREF
 
 /**
  * Created by mulvaney on 10/31/14.
@@ -41,19 +41,18 @@ abstract class GrameneMongoLoader extends Loader {
     void load() {
         Integer start = 0
 
-        while (true) {
-            def contents = parseJSON(start)
-            for (Map taxon in contents.response) {
-                preprocess(taxon)
-                process(taxon)
-            }
-            start += ROWS
-            if (0 == start % 100_000) log.info "$start records processed"
-            if (start > contents.count) {
-                log.info "$contents.count records processed"
-                break
-            }
+        DBCollection collection = Mongo.get(path)
+        DBCursor data = collection.find()
+
+        while (data.hasNext()) {
+            Map taxon = data.next()
+            preprocess(taxon)
+            process(taxon)
+            ++start
+            if (0 == start % 10_000) log.info "$start records processed"
         }
+
+        log.info "$start records processed"
     }
 
     static preprocess(Map entry) {
@@ -84,7 +83,7 @@ abstract class GrameneMongoLoader extends Loader {
         Label nameLabel = labels.Name
         for (String s in synonyms) {
             long synonymNodeId = nodes.getOrCreate(nameLabel, s, batch)
-            link(nodeId, synonymNodeId, SYNONYM)
+            link(nodeId, synonymNodeId, Rels.SYNONYM)
         }
     }
 
@@ -121,6 +120,6 @@ abstract class GrameneMongoLoader extends Loader {
         }
 
         Long xrefId = node(referrerId, labels[type], props, allLabels)
-        link(referrerId, xrefId, XREF)
+        link(referrerId, xrefId, Rels.XREF)
     }
 }

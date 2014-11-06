@@ -1,5 +1,16 @@
 package graphene
 
+import graphene.loaders.DomainLoader
+import graphene.loaders.EOLoader
+import graphene.loaders.GOLoader
+import graphene.loaders.GROLoader
+import graphene.loaders.GeneLoader
+import graphene.loaders.Loader
+import graphene.loaders.NCBITaxonLoader
+import graphene.loaders.POLoader
+import graphene.loaders.ReactomeLoader
+import graphene.loaders.SOLoader
+import graphene.loaders.TOLoader
 import groovy.util.logging.Log4j2
 import org.neo4j.graphdb.DynamicLabel
 import org.neo4j.graphdb.Label
@@ -14,9 +25,9 @@ class Importer {
     private BatchInserter batch
 
     private
-    static Set<Loader> dataLoaders = [new ReactomeLoader(), EOLoader.instance, GOLoader.instance, GROLoader.instance,
+    static Set<Loader> dataLoaders = [/*new ReactomeLoader(), */EOLoader.instance, GOLoader.instance, GROLoader.instance,
                                       POLoader.instance, SOLoader.instance, TOLoader.instance,
-                                      NCBITaxonLoader.instance, DomainLoader.instance]
+                                      NCBITaxonLoader.instance, DomainLoader.instance, GeneLoader.instance]
 
     public Importer(Map config, File dbLocation) {
         try {

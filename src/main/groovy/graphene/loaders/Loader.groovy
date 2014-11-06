@@ -1,5 +1,7 @@
-package graphene
+package graphene.loaders
 
+import graphene.LabelCache
+import graphene.NodeCache
 import groovy.transform.EqualsAndHashCode
 import org.neo4j.graphdb.Label
 import org.neo4j.graphdb.RelationshipType

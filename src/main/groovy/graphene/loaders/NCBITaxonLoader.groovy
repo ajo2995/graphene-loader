@@ -1,9 +1,9 @@
-package graphene
+package graphene.loaders
 
 import org.neo4j.graphdb.Label
 
-import static graphene.Rels.ALT_ID
-import static graphene.Rels.SUPER_TAXON
+import static Rels.ALT_ID
+import static Rels.SUPER_TAXON
 
 @Singleton
 class NCBITaxonLoader extends GrameneMongoLoader {

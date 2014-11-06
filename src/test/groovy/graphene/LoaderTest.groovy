@@ -1,8 +1,7 @@
 package graphene
 
-import groovy.mock.interceptor.MockFor
+import graphene.loaders.Loader
 import org.junit.Test
-import org.neo4j.unsafe.batchinsert.BatchInserter
 
 import static org.junit.Assert.*
 /**

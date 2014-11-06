@@ -1,4 +1,4 @@
-package graphene
+package graphene.loaders
 
 import groovy.util.logging.Log4j2
 import org.neo4j.graphdb.Label

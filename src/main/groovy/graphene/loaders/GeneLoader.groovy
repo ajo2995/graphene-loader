@@ -26,7 +26,7 @@ class GeneLoader extends GrameneMongoLoader {
         List<String> geneTrees = gene.remove('genetrees')
         Map<String, List<String>> proteinFeatures = gene.remove('protein_features') ?: Collections.emptyMap()
 
-        long nodeId = node(geneId, labels.Gene, gene)
+        long nodeId = node(labels.Gene, gene)
 
         linkToTaxon(nodeId, taxonId)
         createXrefs(nodeId, xrefs)
@@ -63,6 +63,10 @@ class GeneLoader extends GrameneMongoLoader {
     void createProteinFeatures(long nodeId, Map<String, List<String>> features) {
         for(Map.Entry<String, List<String>> featureSet in features) {
             String feature = featureSet.key
+            if(!feature) {
+                log.error "Unnamed feature for node $nodeId"
+                continue
+            }
             if(feature == 'interpro') feature = 'InterPro'
             for(String featureVal in featureSet) {
                 long id = node(featureVal, labels[feature], [name: featureVal], labels.getLabels([feature, 'ProteinFeature']))

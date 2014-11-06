@@ -62,6 +62,10 @@ abstract class Loader {
         nodeId
     }
 
+    Long getNodeId(long externalId) {
+        return externalIdToNeoId[externalId]
+    }
+
     long link(Long from, Long to, RelationshipType type, Map relProps = Collections.emptyMap()) {
         batch.createRelationship(from, to, type, relProps)
     }
@@ -86,12 +90,18 @@ abstract class Loader {
     protected LabelCache getLabels() {
         return labels
     }
+
+    protected setNodeProperty(long id, name, value) {
+        Map nodeProps = batch.getNodeProperties(id)
+        nodeProps[name] = value
+        batch.setNodeProperties(id, nodeProps)
+    }
 }
 
 enum Rels implements RelationshipType {
     SUPER_TAXON, ALT_ID, SYNONYM, XREF,
     INTERSECTION, // logical intersection, see http://geneontology.org/page/ontology-structure search for 'cross-products'
-    CONTRIBUTES_TO
+    CONTRIBUTES_TO, CONTAINS, SPECIES, LOCATION
 }
 
 // to store relations to nodes that don't exist yet

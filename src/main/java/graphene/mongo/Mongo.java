@@ -50,15 +50,22 @@ public class Mongo {
 
         System.out.println(genes.getCount());
 
-        DBCursor cursor = genes.find();
+//        DBCursor cursor = genes.find();
 
-        Integer count = 0;
-        while (cursor.hasNext()) {
-            cursor.next();
-            if ((count = ++count) % 10_000 == 0) System.out.print(".");
+        int[] batchSizes = new int[]{0, 100, 1000, 10000, 100000};
+        for(int i = 0; i < batchSizes.length; i++) {
+            DBCursor cursor = genes.find();
+            cursor.batchSize(batchSizes[i]);
+            long start = System.currentTimeMillis();
+            Integer count = 0;
+            while (cursor.hasNext()) {
+                cursor.next();
+                if ((count = ++count) % 10_000 == 0) System.out.print(".");
+            }
+
+            System.out.println("\nBatch size " + batchSizes[i] + " finised in " + (System.currentTimeMillis() - start) + "ms");
         }
 
-        System.out.println("\ndone");
     }
 
     private MongoClient mongoClient;

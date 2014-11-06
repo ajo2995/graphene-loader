@@ -238,7 +238,7 @@ class ReactomeLoader extends Loader {
                 if (propVal ==~ /\d+/) {
                     propVal = Integer.parseInt(propVal, 10)
                 }
-                batch.setNodeProperty(id, prop, propVal)
+                setNodeProperty(id, prop, propVal)
             }
         }
     }
@@ -258,10 +258,7 @@ class ReactomeLoader extends Loader {
                 else {
                     String relName = rship + 'Name'
                     String relNameValue = batch.getNodeProperties(relation).name
-                    // work around some weird exception when calling batch.setNodeProperty(id, relName, relNameValue)
-                    Map nodeProps = batch.getNodeProperties(id)
-                    nodeProps[relName] = relNameValue
-                    batch.setNodeProperties(id, nodeProps)
+                    setNodeProperty(id, relName, relNameValue)
 
                     relProps = Collections.emptyMap()
                 }

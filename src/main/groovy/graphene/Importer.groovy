@@ -1,17 +1,13 @@
 package graphene
 
+import com.google.common.collect.BiMap
+import com.google.common.collect.HashBiMap
 import graphene.loaders.DomainLoader
-import graphene.loaders.EOLoader
-import graphene.loaders.GOLoader
-import graphene.loaders.GROLoader
 import graphene.loaders.GeneLoader
 import graphene.loaders.Loader
 import graphene.loaders.NCBITaxonLoader
-import graphene.loaders.POLoader
-import graphene.loaders.ReactomeLoader
-import graphene.loaders.SOLoader
-import graphene.loaders.TOLoader
 import groovy.util.logging.Log4j2
+import org.bson.types.ObjectId
 import org.neo4j.graphdb.DynamicLabel
 import org.neo4j.graphdb.Label
 import org.neo4j.unsafe.batchinsert.BatchInserter
@@ -25,8 +21,8 @@ class Importer {
     private BatchInserter batch
 
     private
-    static Set<Loader> dataLoaders = [/*new ReactomeLoader(), */EOLoader.instance, GOLoader.instance, GROLoader.instance,
-                                      POLoader.instance, SOLoader.instance, TOLoader.instance,
+    static Set<Loader> dataLoaders = [/*new ReactomeLoader(), EOLoader.instance, GOLoader.instance, GROLoader.instance,
+                                      POLoader.instance, SOLoader.instance, TOLoader.instance,*/
                                       NCBITaxonLoader.instance, DomainLoader.instance, GeneLoader.instance]
 
     public Importer(Map config, File dbLocation) {
@@ -72,15 +68,16 @@ class Importer {
 
 @Log4j2
 @Singleton
-class NodeCache implements Map<Label, Map<String, Long>> {
+class NodeCache implements Map<Label, BiMap<String, Long>> {
     @Delegate
-    Map<Label, Map<String, Long>> delegate = [:].withDefault { [:] }
+    Map<Label, BiMap<String, Long>> delegate = [:].withDefault { HashBiMap.create() }
 
     Long create(Label label, Long id, Map props, BatchInserter batch) {
         String name = props.name
         if (!name) throw new RuntimeException("Need property name for $label node $id (props supplied $props)")
         if (delegate[label][name]) throw new RuntimeException("A $label with name $props.name already exists")
         delegate[label][name] = batch.createNode(id, props, label)
+
     }
 
     Long getOrCreate(Label label, String name, BatchInserter batch) {
@@ -92,34 +89,39 @@ class NodeCache implements Map<Label, Map<String, Long>> {
     }
 
     Long augmentOrCreate(Label l, Map<String, ?> props, Collection<Label> labels, BatchInserter batch) {
-        if (!props?.name) {
+        String name = props.name
+        if (!name) {
             throw new RuntimeException("One property needs to be `name`. We got the following props: $props")
         }
-        String name = props.name
-        Long result = getOrCreate(l, name, batch)
-        for (def prop in props.keySet()) {
-            def val = props[prop]
-            if (val instanceof Collection) {
-                log.error "Can't add a Collection as a property. We got $val with key $prop"
-            } else {
-                batch.setNodeProperty(result, prop, val)
-            }
-        }
+        Long nodeId = getOrCreate(l, name, batch)
+
+        addPropertiesToNode(props, batch, nodeId)
+        setLabels(labels, l, batch, nodeId)
+        return nodeId
+    }
+
+    private static void addPropertiesToNode(Map<String, ?> props, BatchInserter batch, long nodeId) {
+        props = props.findAll { !(it.value instanceof Collection) }
+                     .each { e -> if (e.value instanceof ObjectId) e.value = e.value.toString() }
+        Map currentProps = batch.getNodeProperties(nodeId)
+        currentProps.putAll(props)
+        batch.setNodeProperties(nodeId, currentProps)
+    }
+
+    private static void setLabels(Collection<Label> labels, Label labelUsedForCaching, BatchInserter batch, long nodeId) {
         Label[] allLabels
         if (labels) {
-            if (!labels.contains(l)) {
+            if (!labels.contains(labelUsedForCaching)) {
                 allLabels = new Label[labels.size() + 1]
-                allLabels[0] = l
+                allLabels[0] = labelUsedForCaching
                 for (int i = 0; i < labels.size(); i++) {
                     allLabels[i + 1] = labels[i]
                 }
+            } else {
+                allLabels = labels.toArray(new Label[labels.size()])
             }
-            else {
-                allLabels = labels.toArray()
-            }
-            batch.setNodeLabels(result, allLabels)
+            batch.setNodeLabels(nodeId, allLabels)
         }
-        return result
     }
 
     Set<Label> labelsWithUniqueNames() { new LinkedHashSet<Label>(delegate.keySet()) }

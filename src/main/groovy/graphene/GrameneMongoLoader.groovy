@@ -1,11 +1,8 @@
 package graphene
 
 import groovy.json.JsonSlurper
-import groovy.transform.EqualsAndHashCode
 import groovy.util.logging.Log4j2
 import org.neo4j.graphdb.Label
-import org.neo4j.graphdb.RelationshipType
-import org.neo4j.unsafe.batchinsert.BatchInserter
 
 import java.util.regex.Matcher
 
@@ -24,6 +21,7 @@ abstract class GrameneMongoLoader extends Loader {
     static final JsonSlurper JSON_SLURPER = new JsonSlurper()
 
     abstract void process(Map result)
+
     abstract String getPath()
 
     private def parseJSON(Integer start) {
@@ -43,14 +41,14 @@ abstract class GrameneMongoLoader extends Loader {
     void load() {
         Integer start = 0
 
-        while(true) {
+        while (true) {
             def contents = parseJSON(start)
             for (Map taxon in contents.response) {
-               preprocess(taxon)
-               process(taxon)
+                preprocess(taxon)
+                process(taxon)
             }
             start += ROWS
-            if(start > contents.count) break
+            if (start > contents.count) break
         }
     }
 
@@ -63,7 +61,8 @@ abstract class GrameneMongoLoader extends Loader {
 
         Matcher rankMatcher = entry.remove('property_value') =~ /has_rank NCBITaxon:(\w+)/
         if (rankMatcher) {
-            entry.rank = ((List<String>)rankMatcher[0])[1]?.capitalize()  // explicit cast to fail early if we didn't get any match groups
+            entry.rank = ((List<String>) rankMatcher[0])[1]?.capitalize()
+            // explicit cast to fail early if we didn't get any match groups
         }
     }
 
@@ -90,22 +89,22 @@ abstract class GrameneMongoLoader extends Loader {
     }
 
     def createXrefs(long nodeId, List<String> xrefs) {
-        for(String xref in xrefs) {
-            if(xref.indexOf(':') > 0) {
+        for (String xref in xrefs) {
+            if (xref.indexOf(':') > 0) {
                 def (String key, String value) = xref.split(':', 2)
-                if(key != 'GC_ID') createXref(key, value, nodeId)
+                if (key != 'GC_ID') createXref(key, value, nodeId)
             }
         }
     }
 
     def createXref(String type, String name, Long referrerId) {
         Collection<Label> allLabels = labels.getLabels([type, 'Xref'])
-        Map props = [name:name, type:type]
+        Map props = [name: name, type: type]
 
-        if(['Reactome', 'VZ', 'http', 'loinc'].contains(type)) {
+        if (['Reactome', 'VZ', 'http', 'loinc'].contains(type)) {
             String[] splitt = props.name.split(' ', 2)
             props.name = splitt[0]
-            if(splitt.length > 1) props.desc = splitt[1]
+            if (splitt.length > 1) props.desc = splitt[1]
         }
 
         Long xrefId = node(referrerId, labels[type], props, allLabels)

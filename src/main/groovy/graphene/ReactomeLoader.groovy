@@ -3,7 +3,6 @@ package graphene
 import groovy.util.logging.Log4j2
 import org.neo4j.graphdb.DynamicRelationshipType
 import org.neo4j.graphdb.Label
-import org.neo4j.unsafe.batchinsert.BatchInserter
 
 import static com.xlson.groovycsv.CsvParser.parseCsv
 
@@ -110,7 +109,7 @@ class ReactomeLoader extends Loader {
     }
 
     static long getId(line) {
-        Long.valueOf((String)line.DB_ID)
+        Long.valueOf((String) line.DB_ID)
     }
 
     private processDecoratorData(List<File> decorators) {
@@ -120,9 +119,9 @@ class ReactomeLoader extends Loader {
             def data = parseCsv(f.newReader())
             Map cols = data.columns
 
-            if(additionalLabel.name() == 'DatabaseIdentifier') {
+            if (additionalLabel.name() == 'DatabaseIdentifier') {
                 cols.name = cols.remove('identifier')
-                data.columns = cols = cols.sort{ it.value }
+                data.columns = cols = cols.sort { it.value }
             }
 
             if (cols.size() == 0) {
@@ -183,7 +182,7 @@ class ReactomeLoader extends Loader {
                 }
 
                 String name = line[prop]
-                if(!name) {
+                if (!name) {
                     log.error("Name is empty for $lineNum of $f.name; $line; ignoring line")
                     continue
                 }
@@ -236,7 +235,7 @@ class ReactomeLoader extends Loader {
         for (String prop in props) {
             def propVal = line[prop]
             if (line[prop] && propVal != 'NULL') {
-                if(propVal ==~ /\d+/) {
+                if (propVal ==~ /\d+/) {
                     propVal = Integer.parseInt(propVal, 10)
                 }
                 batch.setNodeProperty(id, prop, propVal)

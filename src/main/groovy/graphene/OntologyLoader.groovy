@@ -21,12 +21,12 @@ abstract class OntologyLoader extends GrameneMongoLoader {
 
         Long id = oNode['_id']
 
-        if(oNode.is_obsolete) {
+        if (oNode.is_obsolete) {
             log.trace "Ignoring obsolete node $oNode"
             return;
         }
 
-        if(id == null) {
+        if (id == null) {
             throw new RuntimeException("Node $oNode has no external id")
         }
 
@@ -53,22 +53,22 @@ abstract class OntologyLoader extends GrameneMongoLoader {
     }
 
     void createOtherRels(long nodeId, Map<String, Collection<Long>> rels) {
-        rels.each{ String relName, Collection<Long> relOntologyIds ->
+        rels.each { String relName, Collection<Long> relOntologyIds ->
             RelationshipType relType = DynamicRelationshipType.withName(relName.toUpperCase())
-            for(Long relOntologyId in relOntologyIds) {
+            for (Long relOntologyId in relOntologyIds) {
                 linkToExternal(nodeId, relOntologyId, relType)
             }
         }
     }
 
     static Map<String, Collection<Long>> findOtherRelations(Map<String, ?> oNode) {
-        oNode.findAll{ String k, v -> v instanceof Collection }.each{ oNode.remove(it.key) }
+        oNode.findAll { String k, v -> v instanceof Collection }.each { oNode.remove(it.key) }
     }
 
     Collection<Label> getOntologyNodeLabels(namespace, subsets) {
-        List labelStrings = [ path, namespace ]
-        if(subsets) {
-            for(String subset in subsets) {
+        List labelStrings = [path, namespace]
+        if (subsets) {
+            for (String subset in subsets) {
                 String labelName = underscoreCaseToCamelCase(subset)
                 labelStrings << labelName
             }
@@ -81,14 +81,14 @@ abstract class OntologyLoader extends GrameneMongoLoader {
     }
 // dynamic relationship types between nodes.
     void createRelationships(long nodeId, Object relationships) {
-        for(String rship in relationships) {
+        for (String rship in relationships) {
             createRelationshipFromString(rship, nodeId)
         }
     }
 
     // logical intersection, see http://geneontology.org/page/ontology-structure search for 'cross-products'
     def createIntersections(long nodeId, List intersections) {
-        if(!intersections) return
+        if (!intersections) return
         def (Long id, String name) = intersections
         linkToExternal(nodeId, id, Rels.INTERSECTION)
         createRelationshipFromString(name, nodeId)
@@ -103,8 +103,9 @@ abstract class OntologyLoader extends GrameneMongoLoader {
             linkToExternal(nodeId, oId, relType)
         }
     }
+
     String namespace(String namespace) {
-        if(namespace) {
+        if (namespace) {
             namespace = underscoreCaseToCamelCase(namespace)
             return labels[namespace]
         }

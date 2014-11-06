@@ -35,11 +35,10 @@ class NCBITaxonLoader extends GrameneMongoLoader {
 
     static Long parentTaxonId(taxon) {
         def is_a = taxon.remove('is_a')
-        if(is_a) {
-            if(is_a instanceof Collection && is_a.size()) {
+        if (is_a) {
+            if (is_a instanceof Collection && is_a.size()) {
                 return is_a[0]
-            }
-            else {
+            } else {
                 return is_a
             }
         }

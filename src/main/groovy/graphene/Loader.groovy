@@ -96,6 +96,7 @@ enum Rels implements RelationshipType {
 @EqualsAndHashCode
 class Rel {
     long fromNodeId
-    def toExternalId // we don't necessarily know the node id for the to side of a relationship. use GrameneMongoLoader#getNeoNodeId when all the nodes are loaded
+    def toExternalId
+    // we don't necessarily know the node id for the to side of a relationship. use GrameneMongoLoader#getNeoNodeId when all the nodes are loaded
     RelationshipType type
 }

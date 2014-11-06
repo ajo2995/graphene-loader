@@ -17,7 +17,7 @@ class DomainLoader extends GrameneMongoLoader {
         Map nodeprops = result.subMap(NODE_PROP_KEYS).findAll{ k,v -> v }
         Map<String, Object> domainDescriptors = result.findAll{ k, v -> !NODE_PROP_KEYS.contains(k) }
 
-        log.info nodeprops
+        log.trace nodeprops
 
         long interproNodeId = node(labels.InterPro, nodeprops, [labels[nodeprops.type]])
 

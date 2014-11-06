@@ -11,9 +11,9 @@ class Importer {
 
     private final NodeCache nodeCache = NodeCache.instance
     private final LabelCache labelCache = LabelCache.instance
-    private final BatchInserter batch
+    private BatchInserter batch
 
-    private Set<Loader> dataLoaders = [ new ReactomeLoader(), EOLoader.instance, GOLoader.instance, GROLoader.instance,
+    private static Set<Loader> dataLoaders = [ new ReactomeLoader(), EOLoader.instance, GOLoader.instance, GROLoader.instance,
                                        POLoader.instance, SOLoader.instance, TOLoader.instance,
                                        NCBITaxonLoader.instance, DomainLoader.instance]
 
@@ -22,10 +22,17 @@ class Importer {
             batch = BatchInserters.inserter(dbLocation.canonicalPath, config)
 
             for(Loader l in dataLoaders) {
+                String className = l.class.simpleName
+                log.info "Loader $className starting"
+                Long start = System.currentTimeMillis()
                 l.load(batch, nodeCache, labelCache)
+                log.info "$className took ${System.currentTimeMillis() - start} ms"
             }
 
+            log.info "Adding indices"
+            Long start = System.currentTimeMillis()
             indexOnNamePropertyForAllLabels();
+            log.info "Indices took ${System.currentTimeMillis() - start} ms to add"
         }
         finally {
             batch?.shutdown()
@@ -38,20 +45,16 @@ class Importer {
         Collection<Label> nonUniqueLabels = labelCache.labels() - uniqueLabels
 
         for(Label l in uniqueLabels) {
-            log.info "Adding unique constraint to ${l.name()} on 'name'"
+            log.trace "Adding unique constraint to ${l.name()} on 'name'"
             batch.createDeferredConstraint(l).assertPropertyIsUnique('name').create()
         }
 
         for (Label l in nonUniqueLabels) {
-            log.info "Indexing ${l.name()} on 'name'"
+            log.trace "Indexing ${l.name()} on 'name'"
             batch.createDeferredSchemaIndex(l).on("name").create();
             batch.createDeferredSchemaIndex(l).on("id").create();
             batch.createDeferredSchemaIndex(l).on("_id").create();
         }
-    }
-
-    public static void main(args) {
-
     }
 }
 
@@ -84,7 +87,7 @@ class NodeCache implements Map<Label, Map<String, Long>> {
         for(def prop in props.keySet()) {
             def val = props[prop]
             if(val instanceof Collection) {
-                log.info "Can't add a Collection as a property. We got $val with key $prop"
+                log.error "Can't add a Collection as a property. We got $val with key $prop"
             }
             else {
                 batch.setNodeProperty(result, prop, val)

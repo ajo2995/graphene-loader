@@ -14,4 +14,11 @@ match (to:Reaction)-[:CATALYST_ACTIVITY]->(:CatalystActivity)-[:PHYSICAL_ENTITY]
 
 match (i:PhysicalEntity{common:false})-[:INPUT]->(r:Reaction)-[:OUTPUT]->(o:PhysicalEntity{common:false}), (i)-[:INPUT]->(r2:Event)-[:OUTPUT]->(o) merge (r)-[:METABOLITE_LINK]->(r2);
 
-create index on :ReferenceSequence(identifier)
+match (d:ReferenceDatabase{name:'NCBI Taxonomy'})--(i:DatabaseIdentifier), (t:NCBITaxonomy) where i.name = str(t._id) create (i)-[:DATABASE_BRIDGE]->(t) return count(i)
+
+match (db:ReferenceDatabase{name:'EC'})--(i:DatabaseIdentifier), (e:EC) where i.name = e.name create (i)-[:DATABASE_BRIDGE]->(e) return count(*)
+
+match (g:GO_BiologicalProcess), (h:GO) where g.accession = h._id merge (g)-[:DATABASE_BRIDGE]->(h) return count(g)
+match (g:GO_CellularComponent), (h:GO) where g.accession = h._id merge (g)-[:DATABASE_BRIDGE]->(h) return count(g)
+match (g:GO_MolecularFunction), (h:GO) where g.accession = h._id merge (g)-[:DATABASE_BRIDGE]->(h) return count(g)
+

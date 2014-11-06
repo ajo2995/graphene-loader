@@ -22,7 +22,7 @@ abstract class OntologyLoader extends GrameneMongoLoader {
         Long id = oNode['_id']
 
         if(oNode.is_obsolete) {
-            log.info "Ignoring obsolete node $oNode"
+            log.trace "Ignoring obsolete node $oNode"
             return;
         }
 

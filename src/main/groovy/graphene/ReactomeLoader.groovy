@@ -63,7 +63,7 @@ class ReactomeLoader extends Loader {
 
             log.info "$count nodes inserted"
         } else {
-            log.info "Nodes already loaded. Should run this on an empty db."
+            log.error "Nodes already loaded. Should run this on an empty db."
             batch.shutdown()
             System.exit(1)
         }
@@ -126,7 +126,7 @@ class ReactomeLoader extends Loader {
             }
 
             if (cols.size() == 0) {
-                log.info "  $f.name has no columns; ignoring file"
+                log.trace "  $f.name has no columns; ignoring file"
                 continue
             }
 
@@ -140,7 +140,7 @@ class ReactomeLoader extends Loader {
                 long id = getId(line)
 
                 if (!id) {
-                    log.info "  No id on line $lineNum of $f.name; ignoring line"
+                    log.error "  No id on line $lineNum of $f.name; ignoring line"
                     continue
                 }
 
@@ -153,7 +153,7 @@ class ReactomeLoader extends Loader {
                 // add relationships
                 addRelationships(id, line, rships)
             }
-            log.info "  processed $lineNum lines when processing decorators"
+            log.trace "  processed $lineNum lines when processing decorators"
         }
     }
 
@@ -193,7 +193,7 @@ class ReactomeLoader extends Loader {
                 String rshipName = camelCaseToConstantCase(prop)
                 link(id, newNodeId, DynamicRelationshipType.withName(rshipName), [rank: line[prop + '_rank']])
             }
-            log.info "  processed $lineNum lines when creating new nodes"
+            log.trace "  processed $lineNum lines when creating new nodes"
         }
     }
 
@@ -214,7 +214,7 @@ class ReactomeLoader extends Loader {
                 ++lineNum
                 long id = getId(line)
                 if (!id) {
-                    log.info "  No id on line $lineNum of $f.name; ignoring line"
+                    log.error "  No id on line $lineNum of $f.name; ignoring line"
                     continue
                 }
 
@@ -284,7 +284,7 @@ class ReactomeLoader extends Loader {
         }.collect {
             it[0..-7]
         }
-        if (rships) log.info "  Found relationships $rships"
+        if (rships) log.trace "  Found relationships $rships"
         rships
     }
 
@@ -300,7 +300,7 @@ class ReactomeLoader extends Loader {
         result = result.findAll { String col -> !(col.contains('_')) }
         // this is a groovy method that doesn't mutate the collection, so we need to reassign
 
-        if (result) log.info "  Found props $result"
+        if (result) log.trace "  Found props $result"
         result
     }
 }

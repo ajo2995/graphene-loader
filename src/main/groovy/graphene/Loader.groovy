@@ -14,7 +14,7 @@ abstract class Loader {
     private LabelCache labels
 
     private Set<Rel> uncreatedRelationships = []
-    private Map<?, Long> externalIdToNeoId = [:]
+    private Map<Object, Long> externalIdToNeoId = [:]
 
     void load(BatchInserter batchInserter, NodeCache nodeCache, LabelCache labelCache) {
         this.batch = batchInserter
@@ -54,7 +54,7 @@ abstract class Loader {
         nodes.augmentOrCreate(label, nodeProps, nodeLabels, batch)
     }
 
-    long node(long externalId, Label label, Map nodeProps, Collection<Label> nodeLabels = []) {
+    long node(externalId, Label label, Map nodeProps, Collection<Label> nodeLabels = []) {
         Long nodeId = node(label, nodeProps, nodeLabels)
         externalIdToNeoId[externalId] = nodeId
         nodeId

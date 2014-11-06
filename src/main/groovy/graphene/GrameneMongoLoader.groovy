@@ -16,7 +16,7 @@ import static graphene.Rels.XREF
 abstract class GrameneMongoLoader extends Loader {
 
     static final String URL_TEMPLATE = 'http://brie.cshl.edu:3000/%1$s/select?start=%2$d&rows=%3$d'
-    static final Integer ROWS = 200
+    static final Integer ROWS = 20000
 
     static final JsonSlurper JSON_SLURPER = new JsonSlurper()
 
@@ -48,7 +48,11 @@ abstract class GrameneMongoLoader extends Loader {
                 process(taxon)
             }
             start += ROWS
-            if (start > contents.count) break
+            if (0 == start % 100_000) log.info "$start records processed"
+            if (start > contents.count) {
+                log.info "$contents.count records processed"
+                break
+            }
         }
     }
 
@@ -86,6 +90,15 @@ abstract class GrameneMongoLoader extends Loader {
 
     static String underscoreCaseToCamelCase(String s) {
         s?.toLowerCase()?.split('_')*.capitalize()?.join('')
+    }
+
+    def createXrefs(long nodeId, Map<String, List<String>> xrefs) {
+        for(Map.Entry<String, List<String>> xref in xrefs) {
+            String type = xref.key
+            for(String val in xref.value) {
+                createXref(type, val, nodeId)
+            }
+        }
     }
 
     def createXrefs(long nodeId, List<String> xrefs) {

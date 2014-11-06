@@ -94,12 +94,17 @@ class NodeCache implements Map<Label, Map<String, Long>> {
                 batch.setNodeProperty(result, prop, val)
             }
         }
+        Label[] allLabels
         if (labels) {
-            Label[] allLabels
-            if (labels.contains(l)) {
-                allLabels = labels
-            } else {
-                allLabels = [l] + labels
+            if (!labels.contains(l)) {
+                allLabels = new Label[labels.size() + 1]
+                allLabels[0] = l
+                for (int i = 0; i < labels.size(); i++) {
+                    allLabels[i + 1] = labels[i]
+                }
+            }
+            else {
+                allLabels = labels.toArray()
             }
             batch.setNodeLabels(result, allLabels)
         }

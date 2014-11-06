@@ -35,7 +35,7 @@ abstract class OntologyLoader extends GrameneMongoLoader {
 
         Collection<Label> oLabels = getOntologyNodeLabels(namespace, subsets)
         Set<String> synonyms = oNode.remove('synonym')
-        List<String> xrefs = oNode.remove('xref')
+        List<String> xrefs = oNode.remove('xref') ?: Collections.emptyList()
         List<String> relationships = oNode.remove('relationship')
         List intersections = oNode.remove('intersection_of')
         List<String> subset = oNode.remove('subset')

@@ -46,14 +46,17 @@ abstract class Loader {
         }
     }
 
-    // Only for Reactome because it's special: It must always be run first because its database ids are set to be neo's ids
-    void nodeWithId(long externalId, Map nodeProps, Label... labels) {
-        nodes.create(labels[0], externalId, nodeProps, batch)
-        batch.setNodeLabels(externalId, labels)
-    }
-
     long node(Label label, Map nodeProps, Collection<Label> nodeLabels = []) {
         nodes.augmentOrCreate(label, nodeProps, nodeLabels, batch)
+    }
+
+    // Only for Reactome because it's special: It must always be run first because its database ids are set to be neo's ids
+    void nodeNoCache(long externalId, Map nodeProps, Label... labels) {
+        batch.createNode(externalId, nodeProps, labels)
+    }
+
+    long nodeNoCache(Map nodeProps, Label... labels) {
+        batch.createNode(nodeProps, labels)
     }
 
     long node(externalId, Label label, Map nodeProps, Collection<Label> nodeLabels = []) {

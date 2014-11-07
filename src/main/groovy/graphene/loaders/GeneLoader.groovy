@@ -18,21 +18,43 @@ class GeneLoader extends GrameneMongoLoader {
 
         gene = gene.findAll{ it.key && it.value }
 
-        String geneId = gene._id
-        Map<String, List<String>> xrefs = gene.remove('xrefs') ?: Collections.emptyMap()
+        gene._id = gene._id.toString()
+        Map<String, List> xrefs = gene.remove('xrefs') ?: Collections.emptyMap()
+        Map<String, List<Long>> ontologyXrefs = xrefs.subMap('GO', 'TO', 'PO', 'EO', 'GRO', 'SO').findAll{ it.value }
+        xrefs = xrefs.findAll{ !ontologyXrefs.containsKey(it.key) }
         Map<String, Object> location = gene.remove('location')
         Long taxonId = gene.remove('taxon_id')
         gene.remove('interpro')
         List<String> geneTrees = gene.remove('genetrees')
         Map<String, List<String>> proteinFeatures = gene.remove('protein_features') ?: Collections.emptyMap()
 
-        long nodeId = node(labels.Gene, gene)
+        long nodeId = nodeNoCache(gene, labels.Gene)
 
         linkToTaxon(nodeId, taxonId)
+        createOntologyXrefs(nodeId, ontologyXrefs)
         createXrefs(nodeId, xrefs)
         createGenetrees(nodeId, geneTrees)
         createProteinFeatures(nodeId, proteinFeatures)
         createLocation(nodeId, location)
+    }
+
+    void createOntologyXrefs(long nodeId, Map<String, List> ontologyXrefs) {
+        for(Map.Entry<String, List> ont in ontologyXrefs) {
+            String ontology = ont.key
+            Class<Loader> loaderClass = Class.forName("graphene.loaders.${ontology}Loader")
+            Loader loader = loaderClass.instance
+
+            for(Long value in ont.value) {
+                Long ontId = loader.getNodeId(value)
+                if(ontId) {
+                    link(nodeId, ontId, Rels.XREF)
+                }
+                else {
+                    log.info "Could not find node for $ontology $value"
+                }
+            }
+
+        }
     }
 
     void linkToTaxon(long geneId, long taxonExternalId) {
@@ -68,7 +90,7 @@ class GeneLoader extends GrameneMongoLoader {
                 continue
             }
             if(feature == 'interpro') feature = 'InterPro'
-            for(String featureVal in featureSet) {
+            for(String featureVal in featureSet.value) {
                 long id = node(featureVal, labels[feature], [name: featureVal], labels.getLabels([feature, 'ProteinFeature']))
                 link(nodeId, id, Rels.CONTAINS)
             }

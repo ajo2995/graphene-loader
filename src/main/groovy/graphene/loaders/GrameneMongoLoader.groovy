@@ -48,8 +48,7 @@ abstract class GrameneMongoLoader extends Loader {
             Map taxon = data.next()
             preprocess(taxon)
             process(taxon)
-            ++start
-            if (0 == start % 10_000) log.info "$start records processed"
+            if (0 == ++start % 10_000) log.info "$start records processed"
         }
 
         log.info "$start records processed"

@@ -1,11 +1,6 @@
 package graphene
 
-import com.google.common.collect.BiMap
-import com.google.common.collect.HashBiMap
-import graphene.loaders.DomainLoader
-import graphene.loaders.GeneLoader
-import graphene.loaders.Loader
-import graphene.loaders.NCBITaxonLoader
+import graphene.loaders.*
 import groovy.util.logging.Log4j2
 import org.bson.types.ObjectId
 import org.neo4j.graphdb.DynamicLabel
@@ -21,9 +16,13 @@ class Importer {
     private BatchInserter batch
 
     private
-    static Set<Loader> dataLoaders = [/*new ReactomeLoader(), EOLoader.instance, GOLoader.instance, GROLoader.instance,
-                                      POLoader.instance, SOLoader.instance, TOLoader.instance,*/
+    static Set<Loader> dataLoaders = [new ReactomeLoader(), EOLoader.instance, GOLoader.instance, GROLoader.instance,
+                                      POLoader.instance, SOLoader.instance, TOLoader.instance,
                                       NCBITaxonLoader.instance, DomainLoader.instance, GeneLoader.instance]
+//    private
+//    static Set<Loader> dataLoaders = [EOLoader.instance, GOLoader.instance, GROLoader.instance,
+//                                      POLoader.instance, SOLoader.instance, TOLoader.instance,
+//                                      NCBITaxonLoader.instance, DomainLoader.instance, GeneLoader.instance]
 
     public Importer(Map config, File dbLocation) {
         try {
@@ -68,17 +67,15 @@ class Importer {
 
 @Log4j2
 @Singleton
-class NodeCache implements Map<Label, BiMap<String, Long>> {
+class NodeCache implements Map<Label, Map<String, Long>> {
     @Delegate
-    Map<Label, BiMap<String, Long>> delegate = [:].withDefault { HashBiMap.create() }
+    Map<Label, Map<String, Long>> delegate = [:].withDefault { [:] }
 
-    Long create(Label label, Long id, Map props, BatchInserter batch) {
-        String name = props.name
-        if (!name) throw new RuntimeException("Need property name for $label node $id (props supplied $props)")
-        if (delegate[label][name]) throw new RuntimeException("A $label with name $props.name already exists")
-        delegate[label][name] = batch.createNode(id, props, label)
-
-    }
+//    Long create(Label label, Long id, Map props, BatchInserter batch) {
+//        String name = props.name
+//        if (!name) throw new RuntimeException("Need property name for $label node $id (props supplied $props)")
+//        batch.createNode(id, props, label)
+//    }
 
     Long getOrCreate(Label label, String name, BatchInserter batch) {
         Long result = delegate[label][name]
@@ -88,8 +85,8 @@ class NodeCache implements Map<Label, BiMap<String, Long>> {
         result
     }
 
-    Long augmentOrCreate(Label l, Map<String, ?> props, Collection<Label> labels, BatchInserter batch) {
-        String name = props.name
+    Long augmentOrCreate(Label l, Map<String, ?> props, Collection<Label> labels, BatchInserter batch, String uniqueProp = 'name') {
+        String name = props[uniqueProp]
         if (!name) {
             throw new RuntimeException("One property needs to be `name`. We got the following props: $props")
         }

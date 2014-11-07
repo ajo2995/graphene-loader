@@ -112,37 +112,37 @@ abstract class OntologyLoader extends GrameneMongoLoader {
     }
 }
 
-@Singleton
+@Singleton @Log4j2
 class GOLoader extends OntologyLoader {
     @Override
     String getPath() { 'GO' }
 }
 
-@Singleton
+@Singleton @Log4j2
 class POLoader extends OntologyLoader {
     @Override
     String getPath() { 'PO' }
 }
 
-@Singleton
+@Singleton @Log4j2
 class TOLoader extends OntologyLoader {
     @Override
     String getPath() { 'TO' }
 }
 
-@Singleton
+@Singleton @Log4j2
 class EOLoader extends OntologyLoader {
     @Override
     String getPath() { 'EO' }
 }
 
-@Singleton
+@Singleton @Log4j2
 class SOLoader extends OntologyLoader {
     @Override
     String getPath() { 'SO' }
 }
 
-@Singleton
+@Singleton @Log4j2
 class GROLoader extends OntologyLoader {
     @Override
     String getPath() { 'GRO' }

@@ -54,7 +54,7 @@ class ReactomeLoader extends Loader {
                 Long id = getId(line)
                 Map props = [name: line._displayName]
                 Label label = labels[line._class]
-                nodeWithId(id, props, label, labels.Reactome)
+                nodeNoCache(id, props, label, labels.Reactome)
                 if (++count % 100_000 == 0) {
                     log.info count
                 }

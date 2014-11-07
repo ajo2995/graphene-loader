@@ -20,7 +20,7 @@ abstract class GrameneMongoLoader extends Loader {
 
     static final JsonSlurper JSON_SLURPER = new JsonSlurper()
 
-    abstract void process(Map result)
+    abstract long process(Map result)
 
     abstract String getPath()
 

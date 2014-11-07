@@ -18,7 +18,3 @@ match (d:ReferenceDatabase{name:'NCBI Taxonomy'})--(i:DatabaseIdentifier), (t:NC
 
 match (db:ReferenceDatabase{name:'EC'})--(i:DatabaseIdentifier), (e:EC) where i.name = e.name create (i)-[:DATABASE_BRIDGE]->(e) return count(*)
 
-match (g:GO_BiologicalProcess), (h:GO) where g.accession = h._id merge (g)-[:DATABASE_BRIDGE]->(h) return count(g)
-match (g:GO_CellularComponent), (h:GO) where g.accession = h._id merge (g)-[:DATABASE_BRIDGE]->(h) return count(g)
-match (g:GO_MolecularFunction), (h:GO) where g.accession = h._id merge (g)-[:DATABASE_BRIDGE]->(h) return count(g)
-

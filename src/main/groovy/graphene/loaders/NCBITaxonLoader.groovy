@@ -12,7 +12,7 @@ class NCBITaxonLoader extends GrameneMongoLoader {
     String getPath() { 'taxonomy' }
 
     @Override
-    void process(Map taxon) {
+    long process(Map taxon) {
         List<String> xrefs = taxon.remove('xref')
         Collection<Label> nodeLabels = labels.getLabels(['Taxon', taxon.rank, 'NCBITaxonomy'])
         Long taxonId = taxon._id
@@ -31,6 +31,8 @@ class NCBITaxonLoader extends GrameneMongoLoader {
                 linkToExternal(nodeId, altTaxonId, ALT_ID)
             }
         }
+
+        nodeId
     }
 
     static Long parentTaxonId(taxon) {

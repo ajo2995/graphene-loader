@@ -112,6 +112,8 @@ class ReactomeLoader extends Loader {
         Long.valueOf((String) line.DB_ID)
     }
 
+    // TODO: Special Case for DatabaseIdentifier and ReferenceEntity: Index nodes by identifier for TAIR and MaizeGDB so we can link to them in GeneLoader
+
     private processDecoratorData(List<File> decorators) {
         for (File f in decorators) {
             log.info f.name
@@ -119,8 +121,16 @@ class ReactomeLoader extends Loader {
             def data = parseCsv(f.newReader())
             Map cols = data.columns
 
-            if (additionalLabel.name() == 'DatabaseIdentifier') {
+            boolean cacheRefNodes = ['DatabaseIdentifier', 'ReferenceEntity'].contains additionalLabel.name()
+            boolean cacheGoNodes = additionalLabel.name() =~ /^GO_/
+
+            if (cacheRefNodes) {
                 cols.name = cols.remove('identifier')
+                data.columns = cols = cols.sort { it.value }
+            }
+
+            else if (cacheGoNodes) {
+                cols.id = cols.remove('accession')
                 data.columns = cols = cols.sort { it.value }
             }
 
@@ -141,6 +151,15 @@ class ReactomeLoader extends Loader {
                 if (!id) {
                     log.error "  No id on line $lineNum of $f.name; ignoring line"
                     continue
+                }
+
+                if(cacheRefNodes) {
+                    nodes[additionalLabel][line.name] = id
+                }
+
+                else if(cacheGoNodes) {
+                    String idNoLeadingZeros = Integer.parseInt(line.id, 10)
+                    nodes[additionalLabel][idNoLeadingZeros] = id
                 }
 
                 // add new label

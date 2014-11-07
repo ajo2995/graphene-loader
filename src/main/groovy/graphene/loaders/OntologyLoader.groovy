@@ -16,14 +16,14 @@ abstract class OntologyLoader extends GrameneMongoLoader {
     private final String ONTOLOGY_RELATIONSHIP_PATTERN = /([a-z_]+) $path:0*(\d+) ! (.*)/
 
     @Override
-    void process(Map oNode) {
+    long process(Map oNode) {
         oNode.remove('def') // it's a bit long
 
         Long id = oNode['_id']
 
         if (oNode.is_obsolete) {
             log.trace "Ignoring obsolete node $oNode"
-            return;
+            return -1;
         }
 
         if (id == null) {
@@ -50,6 +50,7 @@ abstract class OntologyLoader extends GrameneMongoLoader {
         createSubsets(nodeId, subset)
         createOtherRels(nodeId, otherRels)
 
+        nodeId
     }
 
     void createOtherRels(long nodeId, Map<String, Collection<Long>> rels) {
@@ -116,6 +117,20 @@ abstract class OntologyLoader extends GrameneMongoLoader {
 class GOLoader extends OntologyLoader {
     @Override
     String getPath() { 'GO' }
+
+    @Override
+    long process(Map oNode) {
+        long nodeId = super.process(oNode)
+
+        for(Label l in labels.getLabels(['GO_MolecularFunction', 'GO_CellularComponent', 'GO_BiologicalProcess'])) {
+            Long reactomeId = nodes[l][String.valueOf(oNode._id)]
+            if(reactomeId) {
+                link(reactomeId, nodeId, Rels.DATABASE_BRIDGE)
+            }
+        }
+
+        return nodeId
+    }
 }
 
 @Singleton @Log4j2

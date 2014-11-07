@@ -2,6 +2,7 @@ package graphene.loaders
 
 import groovy.util.logging.Log4j2
 import org.neo4j.graphdb.DynamicRelationshipType
+import org.neo4j.graphdb.Label
 
 /**
  * Created by mulvaney on 11/6/14.
@@ -13,7 +14,7 @@ class GeneLoader extends GrameneMongoLoader {
     String getPath() { 'genes' }
 
     @Override
-    void process(Map gene) {
+    long process(Map gene) {
         log.trace gene
 
         gene = gene.findAll{ it.key && it.value }
@@ -30,12 +31,24 @@ class GeneLoader extends GrameneMongoLoader {
 
         long nodeId = nodeNoCache(gene, labels.Gene)
 
+        linkToReactome(nodeId, gene.gene_id)
         linkToTaxon(nodeId, taxonId)
         createOntologyXrefs(nodeId, ontologyXrefs)
         createXrefs(nodeId, xrefs)
         createGenetrees(nodeId, geneTrees)
         createProteinFeatures(nodeId, proteinFeatures)
         createLocation(nodeId, location)
+
+        nodeId
+    }
+
+    void linkToReactome(long nodeId, String geneIdentifier) {
+        for(Label l in labels.getLabels(['DatabaseIdentifier', 'ReferenceEntity'])) {
+            Long reactomeId = nodes[l][geneIdentifier]
+            if(reactomeId) {
+                link(reactomeId, nodeId, Rels.DATABASE_BRIDGE)
+            }
+        }
     }
 
     void createOntologyXrefs(long nodeId, Map<String, List> ontologyXrefs) {
@@ -50,10 +63,9 @@ class GeneLoader extends GrameneMongoLoader {
                     link(nodeId, ontId, Rels.XREF)
                 }
                 else {
-                    log.info "Could not find node for $ontology $value"
+                    log.debug "Could not find node for $ontology $value"
                 }
             }
-
         }
     }
 
@@ -72,7 +84,7 @@ class GeneLoader extends GrameneMongoLoader {
             mapId = node(labels.Map, [name:location.map])
         }
         if(!regionId) {
-            regionId = node(labels.Region, [name:location.region])
+            regionId = node(labels.Region, [name:location.map + ':' + location.region, regionName:location.region]) // oops, all chromosome 1s were the same.
         }
 
         if(createMapRegionRelationship) {
@@ -85,14 +97,27 @@ class GeneLoader extends GrameneMongoLoader {
     void createProteinFeatures(long nodeId, Map<String, List<String>> features) {
         for(Map.Entry<String, List<String>> featureSet in features) {
             String feature = featureSet.key
-            if(!feature) {
-                log.error "Unnamed feature for node $nodeId"
-                continue
-            }
-            if(feature == 'interpro') feature = 'InterPro'
-            for(String featureVal in featureSet.value) {
-                long id = node(featureVal, labels[feature], [name: featureVal], labels.getLabels([feature, 'ProteinFeature']))
-                link(nodeId, id, Rels.CONTAINS)
+            switch(feature) {
+                case null:
+                case '':
+                    log.debug "Ignoring unnamed feature for node $nodeId"
+                    break
+                case { String feat -> DomainLoader.instance.isInterProSignature(feat) }:
+                    log.debug "Ignoring protein feature that is an interpro signature"
+                    break
+                case 'interpro':
+                    for (Integer interproId in featureSet.value) {
+                        Long interproNodeId = DomainLoader.instance.getNodeId(interproId)
+                        if (interproNodeId) link(nodeId, interproNodeId, Rels.CONTAINS)
+                        else
+                            log.debug "Could not find interpro id $interproId"
+                    }
+                    break
+                default:
+                    for (String featureVal in featureSet.value) {
+                        long id = node(featureVal, labels[feature], [name: featureVal], labels.getLabels([feature, 'ProteinFeature']))
+                        link(nodeId, id, Rels.CONTAINS)
+                    }
             }
         }
     }

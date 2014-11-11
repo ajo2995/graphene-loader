@@ -10,6 +10,11 @@ import org.neo4j.graphdb.Label
 @Singleton @Log4j2
 class GeneLoader extends GrameneMongoLoader {
 
+    // keep track of gene locations so that we can link them by adjacency
+    // this map is keyed first by a concat of map and region, and then, in a TreeMap
+    // by the gene start position.
+    private Map<String, NavigableMap<Integer, Long>> adjacentGeneNodeIds = [:].withDefault { new TreeMap<>() }
+
     @Override
     String getPath() { 'genes' }
 
@@ -24,6 +29,7 @@ class GeneLoader extends GrameneMongoLoader {
         Map<String, List<Long>> ontologyXrefs = xrefs.subMap('GO', 'TO', 'PO', 'EO', 'GRO', 'SO').findAll{ it.value }
         xrefs = xrefs.findAll{ !ontologyXrefs.containsKey(it.key) }
         Map<String, Object> location = gene.remove('location')
+        gene.strand = location.strand
         Long taxonId = gene.remove('taxon_id')
         gene.remove('interpro')
         List<String> geneTrees = gene.remove('genetrees')
@@ -38,8 +44,32 @@ class GeneLoader extends GrameneMongoLoader {
         createGenetrees(nodeId, geneTrees)
         createProteinFeatures(nodeId, proteinFeatures)
         createLocation(nodeId, location)
+        addLocationToAdjacentsDatastructure(nodeId, location)
 
         nodeId
+    }
+
+    @Override
+    void after() {
+        super.after()
+
+        for(String region in adjacentGeneNodeIds.keySet()) {
+            NavigableMap<Integer, Long> adjacentNodes = adjacentGeneNodeIds[region]
+            Map.Entry<Integer, Long> prevGeneLoc = adjacentNodes.firstEntry()
+
+            for(Map.Entry<Integer, Long> geneLoc in adjacentNodes.tailMap(prevGeneLoc.key, false)) {
+                link(prevGeneLoc.value, geneLoc.value, Rels.NEXT)
+                prevGeneLoc = geneLoc
+            }
+        }
+    }
+
+    void addLocationToAdjacentsDatastructure(long nodeId, Map<String, Object> location) {
+        String key = "$location.map::::$location.region"
+        Integer start = location.start
+
+        assert start < location.end
+        adjacentGeneNodeIds[key][start] = nodeId
     }
 
     void linkToReactome(long nodeId, String geneIdentifier) {
@@ -106,9 +136,19 @@ class GeneLoader extends GrameneMongoLoader {
                     log.debug "Ignoring protein feature that is an interpro signature"
                     break
                 case 'interpro':
+                    List<Integer> iprIds = featureSet.value.sort()
+                    String iprSetName = iprIds.collect{ String.format('IPR%06d', it) }.join('; ')
+                    boolean linkDomainsToSet = getNodeId(iprSetName) == null // if the node does not exist we need to also link to interpro domains
+                    Long setNodeId = node(iprSetName, labels.InterProSet, [name: iprSetName])
                     for (Integer interproId in featureSet.value) {
                         Long interproNodeId = DomainLoader.instance.getNodeId(interproId)
-                        if (interproNodeId) link(nodeId, interproNodeId, Rels.CONTAINS)
+                        if (interproNodeId) {
+                            link(nodeId, interproNodeId, Rels.CONTAINS)
+                            if(linkDomainsToSet) {
+                                link(setNodeId, interproNodeId, Rels.CONTAINS)
+                            }
+                            link(setNodeId, nodeId, Rels.CONTAINS)
+                        }
                         else
                             log.debug "Could not find interpro id $interproId"
                     }

@@ -54,6 +54,8 @@ class Importer {
         for (Label l in uniqueLabels) {
             log.trace "Adding unique constraint to ${l.name()} on 'name'"
             batch.createDeferredConstraint(l).assertPropertyIsUnique('name').create()
+            batch.createDeferredConstraint(l).assertPropertyIsUnique('id').create()
+            batch.createDeferredConstraint(l).assertPropertyIsUnique('_id').create()
         }
 
         for (Label l in nonUniqueLabels) {

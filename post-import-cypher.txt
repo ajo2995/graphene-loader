@@ -1,3 +1,6 @@
+create index on :Gene(system_name)
+create index on :Gene(gene_id)
+
 match (a:PhysicalEntity)<-[r:INPUT]-(b:Event) merge (a)-[s:INPUT]->(b) delete r return count(a);
 
 match (p:PhysicalEntity) where (p.name =~ 'H2O.*' or p.name =~ 'Pi.*' or p.name =~ 'ATP.*' or p.name =~ 'ADP.*' or p.name =~ 'AMP.*' or p.name=~ 'H\\+.*' or p.name=~ 'PPi.*' or p.name=~ 'L-Glu.*' or p.name=~ '2OG.*' or p.name=~ 'NAD.*' or p.name=~ 'CoA.*' or p.name =~ 'NH3.*' or p.name =~ 'THF.*' or p.name =~ 'UDP-Glc.*' or p.name =~ 'AdoMet.*' or p.name =~ 'AdoHcy.*') and not p.name =~ '.*ase.*' and not p.name = 'UDP-GlcNAc-enolpyruvate [cytosol]' set p.common = true return count(*) as num_common;
@@ -14,7 +17,10 @@ match (to:Reaction)-[:CATALYST_ACTIVITY]->(:CatalystActivity)-[:PHYSICAL_ENTITY]
 
 match (i:PhysicalEntity{common:false})-[:INPUT]->(r:Reaction)-[:OUTPUT]->(o:PhysicalEntity{common:false}), (i)-[:INPUT]->(r2:Event)-[:OUTPUT]->(o) merge (r)-[:METABOLITE_LINK]->(r2);
 
-match (d:ReferenceDatabase{name:'NCBI Taxonomy'})--(i:DatabaseIdentifier), (t:NCBITaxonomy) where i.name = str(t._id) create (i)-[:DATABASE_BRIDGE]->(t) return count(i)
+match (d:ReferenceDatabase{name:'NCBI Taxonomy'})--(i:DatabaseIdentifier), (t:NCBITaxonomy) where i.name = str(t._id) create (i)-[:DATABASE_BRIDGE]->(t) return count(i);
 
-match (db:ReferenceDatabase{name:'EC'})--(i:DatabaseIdentifier), (e:EC) where i.name = e.name create (i)-[:DATABASE_BRIDGE]->(e) return count(*)
+match (db:ReferenceDatabase{name:'EC'})--(i:DatabaseIdentifier), (e:EC) where i.name = e.name create (i)-[:DATABASE_BRIDGE]->(e) return count(*);
 
+// match (i:InterProSet)-[:CONTAINS]->(g:Gene)-[:IN]->(gt:GeneTree) merge (i)-[r:GENE_LINK]->(gt) return count(distinct r);
+// match (g:GeneTree)<-[:GENE_LINK]-(i:InterProSet)-[:GENE_LINK]->(h:GeneTree) where substring(g.name,0,4) = substring(h.name,0,4) and substring(g.name,4) > substring(h.name,4) merge (g)-[x:INTERPROSET_LINK]->(h) return count(distinct x);
+// match (i:InterProSet)-[:GENE_LINK]->(gt:GeneTree)<-[:GENE_LINK]-(j:InterProSet) where i.name > j.name merge (i)-[x:GENETREE_LINK]->(j) return count(distinct x);

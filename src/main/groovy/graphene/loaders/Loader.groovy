@@ -104,7 +104,7 @@ abstract class Loader {
 enum Rels implements RelationshipType {
     SUPER_TAXON, ALT_ID, SYNONYM, XREF,
     INTERSECTION, // logical intersection, see http://geneontology.org/page/ontology-structure search for 'cross-products'
-    CONTRIBUTES_TO, CONTAINS, SPECIES, LOCATION, DATABASE_BRIDGE
+    CONTRIBUTES_TO, CONTAINS, SPECIES, LOCATION, DATABASE_BRIDGE, NEXT
 }
 
 // to store relations to nodes that don't exist yet

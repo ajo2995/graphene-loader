@@ -59,7 +59,8 @@ abstract class Loader {
         batch.createNode(nodeProps, labels)
     }
 
-    long node(externalId, Label label, Map nodeProps, Collection<Label> nodeLabels = []) {
+    long node(externalId, Label label, Map nodeProps = null, Collection<Label> nodeLabels = []) {
+        if(!nodeProps) nodeProps = Collections.singletonMap('name', externalId)
         Long nodeId = node(label, nodeProps, nodeLabels)
         externalIdToNeoId[externalId] = nodeId
         nodeId
@@ -104,7 +105,9 @@ abstract class Loader {
 enum Rels implements RelationshipType {
     SUPER_TAXON, ALT_ID, SYNONYM, XREF,
     INTERSECTION, // logical intersection, see http://geneontology.org/page/ontology-structure search for 'cross-products'
-    CONTRIBUTES_TO, CONTAINS, SPECIES, LOCATION, DATABASE_BRIDGE, NEXT
+    CONTRIBUTES_TO, CONTAINS, SPECIES, LOCATION,
+    DATABASE_BRIDGE, // link related entities between
+    NEXT, FIRST_GENE, LAST_GENE // these are used for adjacent genes on map regions (i.e. scaffolds/chromosomes)
 }
 
 // to store relations to nodes that don't exist yet

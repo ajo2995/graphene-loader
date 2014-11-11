@@ -13,7 +13,7 @@ class GeneLoader extends GrameneMongoLoader {
     // keep track of gene locations so that we can link them by adjacency
     // this map is keyed first by a concat of map and region, and then, in a TreeMap
     // by the gene start position.
-    private Map<String, NavigableMap<Integer, Long>> adjacentGeneNodeIds = [:].withDefault { new TreeMap<>() }
+    private Map<Long, NavigableMap<Integer, Long>> adjacentGeneNodeIds = [:].withDefault { new TreeMap<>() }
 
     @Override
     String getPath() { 'genes' }
@@ -29,7 +29,6 @@ class GeneLoader extends GrameneMongoLoader {
         Map<String, List<Long>> ontologyXrefs = xrefs.subMap('GO', 'TO', 'PO', 'EO', 'GRO', 'SO').findAll{ it.value }
         xrefs = xrefs.findAll{ !ontologyXrefs.containsKey(it.key) }
         Map<String, Object> location = gene.remove('location')
-        gene.strand = location.strand
         Long taxonId = gene.remove('taxon_id')
         gene.remove('interpro')
         List<String> geneTrees = gene.remove('genetrees')
@@ -38,13 +37,12 @@ class GeneLoader extends GrameneMongoLoader {
         long nodeId = nodeNoCache(gene, labels.Gene)
 
         linkToReactome(nodeId, gene.gene_id)
-        linkToTaxon(nodeId, taxonId)
+        Long taxonNodeId = linkToTaxon(nodeId, taxonId)
         createOntologyXrefs(nodeId, ontologyXrefs)
         createXrefs(nodeId, xrefs)
         createGenetrees(nodeId, geneTrees)
         createProteinFeatures(nodeId, proteinFeatures)
-        createLocation(nodeId, location)
-        addLocationToAdjacentsDatastructure(nodeId, location)
+        createLocation(nodeId, taxonNodeId, location)
 
         nodeId
     }
@@ -53,23 +51,23 @@ class GeneLoader extends GrameneMongoLoader {
     void after() {
         super.after()
 
-        for(String region in adjacentGeneNodeIds.keySet()) {
-            NavigableMap<Integer, Long> adjacentNodes = adjacentGeneNodeIds[region]
+        for(Long regionId in adjacentGeneNodeIds.keySet()) {
+            NavigableMap<Integer, Long> adjacentNodes = adjacentGeneNodeIds[regionId]
             Map.Entry<Integer, Long> prevGeneLoc = adjacentNodes.firstEntry()
+            link(regionId, prevGeneLoc.value, Rels.FIRST_GENE)
 
             for(Map.Entry<Integer, Long> geneLoc in adjacentNodes.tailMap(prevGeneLoc.key, false)) {
                 link(prevGeneLoc.value, geneLoc.value, Rels.NEXT)
                 prevGeneLoc = geneLoc
             }
+
+            link(regionId, prevGeneLoc.value, Rels.LAST_GENE)
+
         }
     }
 
-    void addLocationToAdjacentsDatastructure(long nodeId, Map<String, Object> location) {
-        String key = "$location.map::::$location.region"
-        Integer start = location.start
-
-        assert start < location.end
-        adjacentGeneNodeIds[key][start] = nodeId
+    void addLocationToAdjacentsDatastructure(long nodeId, long regionId, Integer start) {
+        adjacentGeneNodeIds[regionId][start] = nodeId
     }
 
     void linkToReactome(long nodeId, String geneIdentifier) {
@@ -99,22 +97,25 @@ class GeneLoader extends GrameneMongoLoader {
         }
     }
 
-    void linkToTaxon(long geneId, long taxonExternalId) {
+    Long linkToTaxon(long geneId, long taxonExternalId) {
         Long taxonNodeId = NCBITaxonLoader.instance.getNodeId(taxonExternalId)
         if(taxonNodeId) link(geneId, taxonNodeId, Rels.SPECIES)
         else log.error "No taxon found for $taxonExternalId"
+        return taxonNodeId
     }
 
-    void createLocation(long nodeId, Map<String, Object> location) {
+    void createLocation(long nodeId, Long taxonId, Map<String, Object> location) {
         Long mapId = nodes[labels.Map][location.map]
         Long regionId = nodes[labels.Region][location.region]
         boolean createMapRegionRelationship = !(mapId && regionId)
 
         if(!mapId) {
-            mapId = node(labels.Map, [name:location.map])
+            mapId = node(location.map, labels.Map)
+            if(taxonId != null) link(taxonId, mapId, Rels.CONTAINS)
         }
         if(!regionId) {
-            regionId = node(labels.Region, [name:location.map + ':' + location.region, regionName:location.region]) // oops, all chromosome 1s were the same.
+            String uniqueName = location.map + ':' + location.region
+            regionId = node(uniqueName, labels.Region, [name:uniqueName, regionName:location.region]) // oops, all chromosome 1s were the same.
         }
 
         if(createMapRegionRelationship) {
@@ -122,6 +123,9 @@ class GeneLoader extends GrameneMongoLoader {
         }
 
         link(nodeId, regionId, Rels.LOCATION, location.subMap('start', 'end', 'strand'))
+
+
+        addLocationToAdjacentsDatastructure(nodeId, regionId, location.start)
     }
 
     void createProteinFeatures(long nodeId, Map<String, List<String>> features) {

@@ -1,5 +1,5 @@
-create index on :Gene(system_name)
-create index on :Gene(gene_id)
+create index on :Gene(system_name);
+create index on :Gene(gene_id);
 
 match (a:PhysicalEntity)<-[r:INPUT]-(b:Event) merge (a)-[s:INPUT]->(b) delete r return count(a);
 

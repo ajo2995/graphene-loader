@@ -13,13 +13,18 @@ match (r1:Event)-[:OUTPUT]->(p:PhysicalEntity)-[:INPUT]->(r2:Event) where p.comm
 
 match (a:SimpleEntity)-[:TO]->(b:SimpleEntity), (a)-[:INPUT]->(r:Event)-[:OUTPUT]->(b), (r)-[:SPECIES]->(s:Species) merge (to:To{between:id(a), and:id(b)}) merge (a)-[:VIA]->(to) merge (to)-[:VIA]->(b) merge (to)-[:RXN]->(r) merge (to)-[:SPECIES]->(s)   return count(to);
 
-match (to:Reaction)-[:CATALYST_ACTIVITY]->(:CatalystActivity)-[:PHYSICAL_ENTITY]->(phys:PhysicalEntity), geneProductPath=(phys)-[:HAS_MEMBER|HAS_COMPONENT|REFERENCE_ENTITY*..3]->(gp:ReferenceGeneProduct) create (to)-[:ENCODED_BY]->(gp) return count(*);
+match (to:Reaction)-[:CATALYST_ACTIVITY]->(:CatalystActivity)-[:PHYSICAL_ENTITY]->(phys:PhysicalEntity), geneProductPath=(phys)-[:HAS_MEMBER|HAS_COMPONENT|REFERENCE_ENTITY*..3]->(gp:ReferenceGeneProduct) merge (to)-[:ENCODED_BY]->(gp) return count(*);
+match (to:Reaction)-[:ENCODED_BY]->(:ReferenceGeneProduct)-[:DATABASE_BRIDGE]->(g:Gene) merge (to)-[:ENCODED_BY]->(g) return count(*);
 
 match (i:PhysicalEntity{common:false})-[:INPUT]->(r:Reaction)-[:OUTPUT]->(o:PhysicalEntity{common:false}), (i)-[:INPUT]->(r2:Event)-[:OUTPUT]->(o) merge (r)-[:METABOLITE_LINK]->(r2);
 
 match (d:ReferenceDatabase{name:'NCBI Taxonomy'})--(i:DatabaseIdentifier), (t:NCBITaxonomy) where i.name = str(t._id) create (i)-[:DATABASE_BRIDGE]->(t) return count(i);
 
 match (db:ReferenceDatabase{name:'EC'})--(i:DatabaseIdentifier), (e:EC) where i.name = e.name create (i)-[:DATABASE_BRIDGE]->(e) return count(*);
+
+match (go:GO)<-[:DATABASE_BRIDGE]-(cl:GO_CellularComponent) set go:CellularComponent return count(go);
+match (go:GO)<-[:DATABASE_BRIDGE]-(cl:GO_MolecularFunction) set go:MolecularFunction return count(go);
+match (go:GO)<-[:DATABASE_BRIDGE]-(cl:GO_BiologicalProcess) set go:BiologicalProcess return count(go);
 
 // match (i:InterProSet)-[:CONTAINS]->(g:Gene)-[:IN]->(gt:GeneTree) merge (i)-[r:GENE_LINK]->(gt) return count(distinct r);
 // match (g:GeneTree)<-[:GENE_LINK]-(i:InterProSet)-[:GENE_LINK]->(h:GeneTree) where substring(g.name,0,4) = substring(h.name,0,4) and substring(g.name,4) > substring(h.name,4) merge (g)-[x:INTERPROSET_LINK]->(h) return count(distinct x);

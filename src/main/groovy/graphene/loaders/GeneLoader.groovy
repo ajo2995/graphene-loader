@@ -105,17 +105,18 @@ class GeneLoader extends GrameneMongoLoader {
     }
 
     void createLocation(long nodeId, Long taxonId, Map<String, Object> location) {
-        Long mapId = nodes[labels.Map][location.map]
-        Long regionId = nodes[labels.Region][location.region]
+        final String uniqueMapName = location.map
+        final String uniqueRegionName = location.map + ':' + location.region
+        Long mapId = nodes[labels.Map][uniqueMapName]
+        Long regionId = nodes[labels.Region][uniqueRegionName]
         boolean createMapRegionRelationship = !(mapId && regionId)
 
         if(!mapId) {
-            mapId = node(location.map, labels.Map)
+            mapId = node(uniqueMapName, labels.Map)
             if(taxonId != null) link(taxonId, mapId, Rels.CONTAINS)
         }
         if(!regionId) {
-            String uniqueName = location.map + ':' + location.region
-            regionId = node(uniqueName, labels.Region, [name:uniqueName, regionName:location.region]) // oops, all chromosome 1s were the same.
+            regionId = node(uniqueRegionName, labels.Region, [name:uniqueRegionName, regionName:location.region]) // oops, all chromosome 1s were the same.
         }
 
         if(createMapRegionRelationship) {

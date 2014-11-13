@@ -119,5 +119,6 @@ abstract class GrameneMongoLoader extends Loader {
 
         Long xrefId = node(referrerId, labels[type], props, allLabels)
         link(referrerId, xrefId, Rels.XREF)
+        incrementNodeProperty(xrefId, 'relCount')
     }
 }

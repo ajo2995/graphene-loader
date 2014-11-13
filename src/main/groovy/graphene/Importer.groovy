@@ -69,6 +69,11 @@ class Importer {
             batch.createDeferredSchemaIndex(l).on("id").create();
             batch.createDeferredSchemaIndex(l).on("_id").create();
         }
+
+        for (Label l in labelCache.labels()) {
+            batch.createDeferredSchemaIndex(l).on("relCount").create();
+            batch.createDeferredSchemaIndex(l).on("geneCount").create();
+        }
     }
 }
 

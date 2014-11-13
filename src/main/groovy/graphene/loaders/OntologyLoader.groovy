@@ -67,7 +67,7 @@ abstract class OntologyLoader extends GrameneMongoLoader {
     }
 
     Collection<Label> getOntologyNodeLabels(namespace, subsets) {
-        List labelStrings = [path, namespace]
+        List labelStrings = [path, namespace, 'Ontology']
         if (subsets) {
             for (String subset in subsets) {
                 String labelName = underscoreCaseToCamelCase(subset)

@@ -91,7 +91,7 @@ class GeneLoader extends GrameneMongoLoader {
                 Long ontId = loader.getNodeId(value)
                 if(ontId) {
                     incrementNodeProperty(ontId, 'geneCount')
-                    link(nodeId, ontId, Rels.XREF)
+                    link(nodeId, ontId, Rels.ONTOLOGY_REF)
                 }
                 else {
                     log.debug "Could not find node for $ontology $value"
@@ -102,7 +102,10 @@ class GeneLoader extends GrameneMongoLoader {
 
     Long linkToTaxon(long geneId, long taxonExternalId) {
         Long taxonNodeId = NCBITaxonLoader.instance.getNodeId(taxonExternalId)
-        if(taxonNodeId) link(geneId, taxonNodeId, Rels.SPECIES)
+        if(taxonNodeId) {
+            link(geneId, taxonNodeId, Rels.SPECIES)
+            incrementNodeProperty(taxonNodeId, 'geneCount')
+        }
         else log.error "No taxon found for $taxonExternalId"
         return taxonNodeId
     }

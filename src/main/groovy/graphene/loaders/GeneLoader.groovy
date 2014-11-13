@@ -29,6 +29,9 @@ class GeneLoader extends GrameneMongoLoader {
         Map<String, List<Long>> ontologyXrefs = xrefs.subMap('GO', 'TO', 'PO', 'EO', 'GRO', 'SO').findAll{ it.value }
         xrefs = xrefs.findAll{ !ontologyXrefs.containsKey(it.key) }
         Map<String, Object> location = gene.remove('location')
+        gene.start = location.start
+        gene.end = location.end
+        gene.strand = location.strand
         Long taxonId = gene.remove('taxon_id')
         gene.remove('interpro')
         List<String> geneTrees = gene.remove('genetrees')
@@ -62,7 +65,6 @@ class GeneLoader extends GrameneMongoLoader {
             }
 
             link(regionId, prevGeneLoc.value, Rels.LAST_GENE)
-
         }
     }
 
@@ -88,6 +90,7 @@ class GeneLoader extends GrameneMongoLoader {
             for(Long value in ont.value) {
                 Long ontId = loader.getNodeId(value)
                 if(ontId) {
+                    incrementNodeProperty(ontId, 'geneCount')
                     link(nodeId, ontId, Rels.XREF)
                 }
                 else {
@@ -109,7 +112,6 @@ class GeneLoader extends GrameneMongoLoader {
         final String uniqueRegionName = location.map + ':' + location.region
         Long mapId = nodes[labels.Map][uniqueMapName]
         Long regionId = nodes[labels.Region][uniqueRegionName]
-        boolean createMapRegionRelationship = !(mapId && regionId)
 
         if(!mapId) {
             mapId = node(uniqueMapName, labels.Map)
@@ -117,14 +119,12 @@ class GeneLoader extends GrameneMongoLoader {
         }
         if(!regionId) {
             regionId = node(uniqueRegionName, labels.Region, [name:uniqueRegionName, regionName:location.region]) // oops, all chromosome 1s were the same.
-        }
-
-        if(createMapRegionRelationship) {
             link(mapId, regionId, Rels.CONTAINS)
+            incrementNodeProperty(mapId, 'regionCount')
         }
 
-        link(nodeId, regionId, Rels.LOCATION, location.subMap('start', 'end', 'strand'))
-
+        link(nodeId, regionId, Rels.LOCATION)
+        incrementNodeProperty(regionId, 'geneCount')
 
         addLocationToAdjacentsDatastructure(nodeId, regionId, location.start)
     }

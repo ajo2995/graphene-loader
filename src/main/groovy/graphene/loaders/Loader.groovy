@@ -95,7 +95,13 @@ abstract class Loader {
         return labels
     }
 
-    protected setNodeProperty(long id, name, value) {
+    protected incrementNodeProperty(long id, String name) {
+        Map nodeProps = batch.getNodeProperties(id)
+        nodeProps[name] = (nodeProps[name] ?: 0) + 1
+        batch.setNodeProperties(id, nodeProps)
+    }
+
+    protected setNodeProperty(long id, String name, value) {
         Map nodeProps = batch.getNodeProperties(id)
         nodeProps[name] = value
         batch.setNodeProperties(id, nodeProps)

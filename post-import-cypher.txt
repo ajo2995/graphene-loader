@@ -18,13 +18,9 @@ match (to:Reaction)-[:ENCODED_BY]->(:ReferenceGeneProduct)-[:DATABASE_BRIDGE]->(
 
 match (i:PhysicalEntity{common:false})-[:INPUT]->(r:Reaction)-[:OUTPUT]->(o:PhysicalEntity{common:false}), (i)-[:INPUT]->(r2:Event)-[:OUTPUT]->(o) merge (r)-[:METABOLITE_LINK]->(r2);
 
-match (d:ReferenceDatabase{name:'NCBI Taxonomy'})--(i:DatabaseIdentifier), (t:NCBITaxonomy) where i.name = str(t._id) create (i)-[:DATABASE_BRIDGE]->(t) return count(i);
+match (d:ReferenceDatabase{name:'NCBI Taxonomy'})--(i:DatabaseIdentifier), (t:NCBITaxonomy) where i.name = str(t._id) merge (i)-[:DATABASE_BRIDGE]->(t) return count(i);
 
-match (db:ReferenceDatabase{name:'EC'})--(i:DatabaseIdentifier), (e:EC) where i.name = e.name create (i)-[:DATABASE_BRIDGE]->(e) return count(*);
-
-match (go:GO)<-[:DATABASE_BRIDGE]-(cl:GO_CellularComponent) set go:CellularComponent return count(go);
-match (go:GO)<-[:DATABASE_BRIDGE]-(cl:GO_MolecularFunction) set go:MolecularFunction return count(go);
-match (go:GO)<-[:DATABASE_BRIDGE]-(cl:GO_BiologicalProcess) set go:BiologicalProcess return count(go);
+match (db:ReferenceDatabase{name:'EC'})--(i:DatabaseIdentifier), (e:EC) where i.name = e.name merge (i)-[:DATABASE_BRIDGE]->(e) return count(*);
 
 // match (i:InterProSet)-[:CONTAINS]->(g:Gene)-[:IN]->(gt:GeneTree) merge (i)-[r:GENE_LINK]->(gt) return count(distinct r);
 // match (g:GeneTree)<-[:GENE_LINK]-(i:InterProSet)-[:GENE_LINK]->(h:GeneTree) where substring(g.name,0,4) = substring(h.name,0,4) and substring(g.name,4) > substring(h.name,4) merge (g)-[x:INTERPROSET_LINK]->(h) return count(distinct x);

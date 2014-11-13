@@ -8,6 +8,7 @@ import org.neo4j.graphdb.Label
 import org.neo4j.unsafe.batchinsert.BatchInserter
 import org.neo4j.unsafe.batchinsert.BatchInserters
 
+@Singleton
 @Log4j2
 class Importer {
 
@@ -24,7 +25,11 @@ class Importer {
 //                                      POLoader.instance, SOLoader.instance, TOLoader.instance,
 //                                      NCBITaxonLoader.instance, DomainLoader.instance, GeneLoader.instance]
 
-    public Importer(Map config, File dbLocation) {
+    static run(Map config, File dbLocation) {
+        Importer.instance.go(config, dbLocation)
+    }
+
+    private go(Map config, File dbLocation) {
         try {
             batch = BatchInserters.inserter(dbLocation.canonicalPath, config)
 

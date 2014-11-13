@@ -58,7 +58,6 @@ abstract class GrameneMongoLoader extends Loader {
         entry.remove('_terms')
         entry.remove('alt_id')
         entry.remove('ancestors')
-        entry.remove('namespace')
         entry.synonym = getSynonyms(entry.remove('synonym'))
 
         Matcher rankMatcher = entry.remove('property_value') =~ /has_rank NCBITaxon:(\w+)/

@@ -95,10 +95,22 @@ abstract class Loader {
         return labels
     }
 
+    static final Map<Label, Set<String>> labelIndicesToAdd = new HashMap<>().withDefault{ new HashSet<>() }
+
     protected incrementNodeProperty(long id, String name) {
         Map nodeProps = batch.getNodeProperties(id)
-        nodeProps[name] = (nodeProps[name] ?: 0) + 1
+        final Integer currentCount = nodeProps[name] ?: 0
+        if(!currentCount) {
+            addIndices(name, batch.getNodeLabels(id))
+        }
+        nodeProps[name] = currentCount + 1
         batch.setNodeProperties(id, nodeProps)
+    }
+
+    private static void addIndices(String propName, Iterable<Label> labels) {
+        for(Label l in labels) {
+            labelIndicesToAdd[l].add(propName)
+        }
     }
 
     protected setNodeProperty(long id, String name, value) {

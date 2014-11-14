@@ -1,6 +1,6 @@
 apply plugin: 'groovy'
-apply plugin: 'java'
 apply plugin: 'idea'
+apply plugin: 'application'
 
 version = '1.0'
 
@@ -8,24 +8,11 @@ repositories {
     mavenCentral()
 }
 
-sourceSets {
-    main {
-        groovy {
-            // override the default locations, rather than adding additional ones
-            srcDirs = ['src/groovy', 'src/java']
-        }
-        java {
-            srcDirs = [] // don't compile Java code twice
-        }
-    }
-    test {
-        groovy {
-            // override the default locations, rather than adding additional ones
-            srcDirs = ['src/groovy', 'src/java']
-        }
-        java {
-            srcDirs = [] // don't compile Java code twice
-        }
+mainClassName = 'graphene.LoadGrameneGraphDb'
+
+run {
+    if(project.hasProperty('args')){
+        args project.args.split('\\s+')
     }
 }
 

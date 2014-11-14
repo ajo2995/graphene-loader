@@ -282,6 +282,8 @@ class ReactomeLoader extends Loader {
                     relProps = Collections.emptyMap()
                 }
                 link(id, relation, DynamicRelationshipType.withName(neoRshipName), relProps)
+                incrementNodeProperty(id, 'relCount')
+                incrementNodeProperty(relation, 'relCount')
             }
         }
     }

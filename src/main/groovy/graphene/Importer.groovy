@@ -70,9 +70,12 @@ class Importer {
             batch.createDeferredSchemaIndex(l).on("_id").create();
         }
 
-        for (Label l in labelCache.labels()) {
-            batch.createDeferredSchemaIndex(l).on("relCount").create();
-            batch.createDeferredSchemaIndex(l).on("geneCount").create();
+        for (Map.Entry<Label, Set<String>> labelIndices in Loader.labelIndicesToAdd) {
+            Label l = labelIndices.key
+            for(String prop in labelIndices.value) {
+                log.info "create index on :$l($prop)"
+                batch.createDeferredSchemaIndex(l).on(prop).create();
+            }
         }
     }
 }

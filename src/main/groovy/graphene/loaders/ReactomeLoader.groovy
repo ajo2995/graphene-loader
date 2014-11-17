@@ -210,6 +210,8 @@ class ReactomeLoader extends Loader {
 
                 String rshipName = camelCaseToConstantCase(prop)
                 link(id, newNodeId, DynamicRelationshipType.withName(rshipName), [rank: line[prop + '_rank']])
+                incrementNodeProperty(id, 'relCount')
+                incrementNodeProperty(newNodeId, 'relCount')
             }
             log.trace "  processed $lineNum lines when creating new nodes"
         }

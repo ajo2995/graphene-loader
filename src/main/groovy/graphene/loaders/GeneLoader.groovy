@@ -77,6 +77,7 @@ class GeneLoader extends GrameneMongoLoader {
             Long reactomeId = nodes[l][geneIdentifier]
             if(reactomeId) {
                 link(reactomeId, nodeId, Rels.DATABASE_BRIDGE)
+                incrementNodeProperty(reactomeId, 'geneCount')
             }
         }
     }
@@ -152,10 +153,12 @@ class GeneLoader extends GrameneMongoLoader {
                         Long interproNodeId = DomainLoader.instance.getNodeId(interproId)
                         if (interproNodeId) {
                             link(nodeId, interproNodeId, Rels.CONTAINS)
+                            incrementNodeProperty(interproNodeId, 'geneCount')
                             if(linkDomainsToSet) {
                                 link(setNodeId, interproNodeId, Rels.CONTAINS)
                             }
                             link(setNodeId, nodeId, Rels.CONTAINS)
+                            incrementNodeProperty(setNodeId, 'geneCount')
                         }
                         else
                             log.debug "Could not find interpro id $interproId"
@@ -165,6 +168,7 @@ class GeneLoader extends GrameneMongoLoader {
                     for (String featureVal in featureSet.value) {
                         long id = node(featureVal, labels[feature], [name: featureVal], labels.getLabels([feature, 'ProteinFeature']))
                         link(nodeId, id, Rels.CONTAINS)
+                        incrementNodeProperty(id, 'geneCount')
                     }
             }
         }
@@ -174,6 +178,7 @@ class GeneLoader extends GrameneMongoLoader {
         for(String geneTree in geneTrees) {
             long geneTreeId = node(labels.GeneTree, [name: geneTree])
             link(geneId, geneTreeId, DynamicRelationshipType.withName('IN'))
+            incrementNodeProperty(geneTreeId, 'geneCount')
         }
     }
 }

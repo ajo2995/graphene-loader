@@ -82,6 +82,8 @@ abstract class GrameneMongoLoader extends Loader {
         for (String s in synonyms) {
             long synonymNodeId = nodes.getOrCreate(nameLabel, s, batch)
             link(nodeId, synonymNodeId, Rels.SYNONYM)
+            incrementNodeProperty(nodeId, 'synonymCount')
+            incrementNodeProperty(synonymNodeId, 'relCount')
         }
     }
 

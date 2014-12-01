@@ -14,7 +14,7 @@ public class Mongo {
     public DBCollection getCollection(String name) {
         DBCollection result = collections.get(name)
 
-        if (!DefaultGroovyMethods.asBoolean(result)) {
+        if (!result) {
             Map<String, String> config = MongoConfig.get().get(name)
             DB db = mongoClient.getDB(config.get("dbName"))
             result = db.getCollection(config.get("collectionName"))

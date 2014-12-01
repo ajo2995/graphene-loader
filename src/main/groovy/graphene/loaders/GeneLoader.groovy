@@ -26,7 +26,7 @@ class GeneLoader extends GrameneMongoLoader {
 
         gene._id = gene._id.toString()
         Map<String, List> xrefs = gene.remove('xrefs') ?: Collections.emptyMap()
-        Map<String, List<Long>> ontologyXrefs = xrefs.subMap('GO', 'TO', 'PO', 'EO', 'GRO', 'SO').findAll{ it.value }
+        Map<String, List<Long>> ontologyXrefs = xrefs.subMap('GO', 'TO', 'PO', 'EO', 'GRO', 'SO', 'goslim_goa').findAll{ it.value }
         xrefs = xrefs.findAll{ !ontologyXrefs.containsKey(it.key) }
         Map<String, Object> location = gene.remove('location')
         gene.start = location.start
@@ -77,7 +77,6 @@ class GeneLoader extends GrameneMongoLoader {
             Long reactomeId = nodes[l][geneIdentifier]
             if(reactomeId) {
                 link(reactomeId, nodeId, Rels.DATABASE_BRIDGE)
-                incrementNodeProperty(reactomeId, 'geneCount')
             }
         }
     }
@@ -85,13 +84,13 @@ class GeneLoader extends GrameneMongoLoader {
     void createOntologyXrefs(long nodeId, Map<String, List> ontologyXrefs) {
         for(Map.Entry<String, List> ont in ontologyXrefs) {
             String ontology = ont.key
+            if(ontology == 'goslim_goa') ontology = 'GO'
             Class<Loader> loaderClass = Class.forName("graphene.loaders.${ontology}Loader")
             Loader loader = loaderClass.instance
 
             for(Long value in ont.value) {
                 Long ontId = loader.getNodeId(value)
                 if(ontId) {
-                    incrementNodeProperty(ontId, 'geneCount')
                     link(nodeId, ontId, Rels.ONTOLOGY_REF)
                 }
                 else {
@@ -105,7 +104,6 @@ class GeneLoader extends GrameneMongoLoader {
         Long taxonNodeId = NCBITaxonLoader.instance.getNodeId(taxonExternalId)
         if(taxonNodeId) {
             link(geneId, taxonNodeId, Rels.SPECIES)
-            incrementNodeProperty(taxonNodeId, 'geneCount')
         }
         else log.error "No taxon found for $taxonExternalId"
         return taxonNodeId
@@ -124,11 +122,9 @@ class GeneLoader extends GrameneMongoLoader {
         if(!regionId) {
             regionId = node(uniqueRegionName, labels.Region, [name:uniqueRegionName, regionName:location.region]) // oops, all chromosome 1s were the same.
             link(mapId, regionId, Rels.CONTAINS)
-            incrementNodeProperty(mapId, 'regionCount')
         }
 
         link(nodeId, regionId, Rels.LOCATION)
-        incrementNodeProperty(regionId, 'geneCount')
 
         addLocationToAdjacentsDatastructure(nodeId, regionId, location.start)
     }
@@ -153,23 +149,18 @@ class GeneLoader extends GrameneMongoLoader {
                         Long interproNodeId = DomainLoader.instance.getNodeId(interproId)
                         if (interproNodeId) {
                             link(nodeId, interproNodeId, Rels.CONTAINS)
-                            incrementNodeProperty(interproNodeId, 'geneCount')
                             if(linkDomainsToSet) {
                                 link(setNodeId, interproNodeId, Rels.CONTAINS)
                             }
                             link(setNodeId, nodeId, Rels.CONTAINS)
-                            incrementNodeProperty(setNodeId, 'geneCount')
                         }
                         else
                             log.debug "Could not find interpro id $interproId"
                     }
                     break
+
                 default:
-                    for (String featureVal in featureSet.value) {
-                        long id = node(featureVal, labels[feature], [name: featureVal], labels.getLabels([feature, 'ProteinFeature']))
-                        link(nodeId, id, Rels.CONTAINS)
-                        incrementNodeProperty(id, 'geneCount')
-                    }
+                    setNodeProperty(nodeId, feature, featureSet.value)
             }
         }
     }
@@ -178,7 +169,6 @@ class GeneLoader extends GrameneMongoLoader {
         for(String geneTree in geneTrees) {
             long geneTreeId = node(labels.GeneTree, [name: geneTree])
             link(geneId, geneTreeId, DynamicRelationshipType.withName('IN'))
-            incrementNodeProperty(geneTreeId, 'geneCount')
         }
     }
 }

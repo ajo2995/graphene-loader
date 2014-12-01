@@ -15,27 +15,9 @@ import java.util.regex.Matcher
 @Log4j2
 abstract class GrameneMongoLoader extends Loader {
 
-    static final String URL_TEMPLATE = 'http://brie.cshl.edu:3000/%1$s/select?start=%2$d&rows=%3$d'
-    static final Integer ROWS = 20000
-
-    static final JsonSlurper JSON_SLURPER = new JsonSlurper()
-
     abstract long process(Map result)
 
     abstract String getPath()
-
-    private def parseJSON(Integer start) {
-        URL url = createUrl(start)
-        parseJSON(url)
-    }
-
-    static private def parseJSON(URL url) {
-        JSON_SLURPER.parse(url)
-    }
-
-    private URL createUrl(Integer start) {
-        sprintf(URL_TEMPLATE, getPath(), start, ROWS).toURL()
-    }
 
     @Override
     void load() {
@@ -82,8 +64,6 @@ abstract class GrameneMongoLoader extends Loader {
         for (String s in synonyms) {
             long synonymNodeId = nodes.getOrCreate(nameLabel, s, batch)
             link(nodeId, synonymNodeId, Rels.SYNONYM)
-            incrementNodeProperty(nodeId, 'synonymCount')
-            incrementNodeProperty(synonymNodeId, 'relCount')
         }
     }
 
@@ -121,6 +101,5 @@ abstract class GrameneMongoLoader extends Loader {
 
         Long xrefId = node(referrerId, labels[type], props, allLabels)
         link(referrerId, xrefId, Rels.XREF)
-        incrementNodeProperty(xrefId, 'relCount')
     }
 }

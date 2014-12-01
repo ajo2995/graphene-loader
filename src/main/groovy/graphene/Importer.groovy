@@ -59,24 +59,24 @@ class Importer {
         for (Label l in uniqueLabels) {
             log.trace "Adding unique constraint to ${l.name()} on 'name'"
             batch.createDeferredConstraint(l).assertPropertyIsUnique('name').create()
-            batch.createDeferredConstraint(l).assertPropertyIsUnique('id').create()
-            batch.createDeferredConstraint(l).assertPropertyIsUnique('_id').create()
+//            batch.createDeferredConstraint(l).assertPropertyIsUnique('id').create()
+//            batch.createDeferredConstraint(l).assertPropertyIsUnique('_id').create()
         }
 
         for (Label l in nonUniqueLabels) {
             log.trace "Indexing ${l.name()} on 'name'"
             batch.createDeferredSchemaIndex(l).on("name").create();
-            batch.createDeferredSchemaIndex(l).on("id").create();
-            batch.createDeferredSchemaIndex(l).on("_id").create();
+//            batch.createDeferredSchemaIndex(l).on("id").create();
+//            batch.createDeferredSchemaIndex(l).on("_id").create();
         }
 
-        for (Map.Entry<Label, Set<String>> labelIndices in Loader.labelIndicesToAdd) {
-            Label l = labelIndices.key
-            for(String prop in labelIndices.value) {
-                log.info "create index on :$l($prop)"
-                batch.createDeferredSchemaIndex(l).on(prop).create();
-            }
-        }
+//        for (Map.Entry<Label, Set<String>> labelIndices in Loader.labelIndicesToAdd) {
+//            Label l = labelIndices.key
+//            for(String prop in labelIndices.value) {
+//                log.info "create index on :$l($prop)"
+//                batch.createDeferredSchemaIndex(l).on(prop).create();
+//            }
+//        }
     }
 }
 

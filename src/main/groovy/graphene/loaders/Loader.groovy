@@ -1,5 +1,8 @@
 package graphene.loaders
 
+import com.google.common.collect.HashMultimap
+import com.google.common.collect.HashMultiset
+import com.google.common.collect.Multiset
 import graphene.LabelCache
 import graphene.NodeCache
 import groovy.transform.EqualsAndHashCode
@@ -33,6 +36,7 @@ abstract class Loader {
     }
 
     private addDeferredRelationships() {
+        log.info "Adding deferred relationships"
         for (Rel r in uncreatedRelationships) {
             Long parentId = externalIdToNeoId[r.toExternalId]
             if (!batch.nodeExists(r.fromNodeId)) {
@@ -95,25 +99,8 @@ abstract class Loader {
         return labels
     }
 
-    static final Map<Label, Set<String>> labelIndicesToAdd = new HashMap<>().withDefault{ new HashSet<>() }
-
-    protected incrementNodeProperty(long id, String name) {
-        Map nodeProps = batch.getNodeProperties(id)
-        final Integer currentCount = nodeProps[name] ?: 0
-        if(!currentCount) {
-            addIndices(name, batch.getNodeLabels(id))
-        }
-        nodeProps[name] = currentCount + 1
-        batch.setNodeProperties(id, nodeProps)
-    }
-
-    private static void addIndices(String propName, Iterable<Label> labels) {
-        for(Label l in labels) {
-            labelIndicesToAdd[l].add(propName)
-        }
-    }
-
     protected setNodeProperty(long id, String name, value) {
+        if(value instanceof Collection) value = value.toArray(new String[value.size()])
         Map nodeProps = batch.getNodeProperties(id)
         nodeProps[name] = value
         batch.setNodeProperties(id, nodeProps)

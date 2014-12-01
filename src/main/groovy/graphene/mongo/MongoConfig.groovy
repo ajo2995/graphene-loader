@@ -11,8 +11,8 @@ import javax.script.ScriptEngineManager
  */
 @Singleton(strict = false)
 class MongoConfig {
-    public static
-    final String GRAMENE_MONGO_CONFIG_URL = 'https://raw.githubusercontent.com/warelab/gramene-mongodb/master/config/collections.js'
+    public static final String GRAMENE_MONGO_CONFIG_URL =
+            'https://raw.githubusercontent.com/warelab/gramene-mongodb/master/config/collections.js'
     final Map<String, Map> collections
 
     private MongoConfig() {

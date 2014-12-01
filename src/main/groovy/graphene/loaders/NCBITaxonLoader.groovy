@@ -1,11 +1,13 @@
 package graphene.loaders
 
+import groovy.util.logging.Log4j2
 import org.neo4j.graphdb.Label
 
 import static Rels.ALT_ID
 import static Rels.SUPER_TAXON
 
 @Singleton
+@Log4j2
 class NCBITaxonLoader extends GrameneMongoLoader {
 
     @Override

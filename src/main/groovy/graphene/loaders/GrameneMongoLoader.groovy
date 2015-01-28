@@ -3,6 +3,7 @@ package graphene.loaders
 import com.mongodb.DBCollection
 import com.mongodb.DBCursor
 import graphene.mongo.Mongo
+import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 import groovy.util.logging.Log4j2
 import org.neo4j.graphdb.Label
@@ -28,8 +29,13 @@ abstract class GrameneMongoLoader extends Loader {
 
         while (data.hasNext()) {
             Map taxon = data.next()
-            preprocess(taxon)
-            process(taxon)
+            try {
+                preprocess(taxon)
+                process(taxon)
+            } catch(Exception e) {
+                String doc = JsonOutput.prettyPrint(JsonOutput.toJson(taxon));
+                log.error("Error thrown debugging this document:\n$doc", e)
+            }
             if (0 == ++start % 10_000) log.info "$start records processed"
         }
 

@@ -81,20 +81,36 @@ class GeneLoader extends GrameneMongoLoader {
         }
     }
 
-    void createOntologyXrefs(long nodeId, Map<String, List> ontologyXrefs) {
-        for(Map.Entry<String, List> ont in ontologyXrefs) {
+    void createOntologyXrefs(long nodeId, Map ontologyXrefs) {
+        for(Map.Entry ont in ontologyXrefs) {
             String ontology = ont.key
-            if(ontology == 'goslim_goa') ontology = 'GO'
-            Class<Loader> loaderClass = Class.forName("graphene.loaders.${ontology}Loader")
+            if(ontology == 'goslim_goa') continue;
+            Class loaderClass = Class.forName("graphene.loaders.${ontology}Loader")
             Loader loader = loaderClass.instance
 
-            for(Long value in ont.value) {
-                Long ontId = loader.getNodeId(value)
-                if(ontId) {
-                    link(nodeId, ontId, Rels.ONTOLOGY_REF)
-                }
-                else {
-                    log.debug "Could not find node for $ontology $value"
+            Map ontologyLinkDetails
+            switch(ont.value) {
+                case Collection:
+                    ontologyLinkDetails = [NA:ont.value]
+                    break
+                case Map:
+                    ontologyLinkDetails = ont.value as Map
+                    break
+                default:
+                    throw new RuntimeException("What fresh hell is this? $ont.value should be a Number, Collection or Map")
+            }
+
+            for(Map.Entry evidence in ontologyLinkDetails) {
+                Map linkProps = evidence.key == 'NA' ? Collections.emptyMap() : [evidence: evidence.key]
+
+                for(value in evidence.value) {
+                    Long ontId = loader.getNodeId((Long)value) // cast to Long because that's how we indexed the taxon nodes.
+                    if(ontId) {
+                        link(nodeId, ontId, Rels.ONTOLOGY_REF, linkProps)
+                    }
+                    else {
+                        log.debug "Could not find node for $ontology $value"
+                    }
                 }
             }
         }
@@ -105,7 +121,9 @@ class GeneLoader extends GrameneMongoLoader {
         if(taxonNodeId) {
             link(geneId, taxonNodeId, Rels.SPECIES)
         }
-        else log.error "No taxon found for $taxonExternalId"
+        else {
+            log.error "No taxon found for $taxonExternalId"
+        }
         return taxonNodeId
     }
 

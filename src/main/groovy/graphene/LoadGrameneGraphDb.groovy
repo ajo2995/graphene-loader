@@ -22,10 +22,14 @@ class LoadGrameneGraphDb {
         CliBuilder cli = new CliBuilder(usage: 'LoadGrameneGraphDB.groovy')
         cli.s(longOpt:'store', args:1, argName:'store', 'location of graph store')
         cli.c(longOpt:'cypher', args:1, argName:'script', 'location of cypher script to run after load')
+        cli.d(longOpt:'dbDump', args: 1, argName:'dbDump', 'location of reactome db dump file')
 
         def opts = cli.parse(args)
         String store = opts.s ?: File.createTempDir("tmpgraph", ".db").absolutePath
         String script = opts.c ?: 'post-import-cypher.txt'
+        String dbDump = opts.d ?: 'db/current_plant_reactome_database.sql'
+
+        System.setProperty('REACTOME_DB_DUMP', dbDump)
 
         new LoadGrameneGraphDb(store, script)
     }
@@ -45,6 +49,8 @@ class LoadGrameneGraphDb {
         log.info "Working with db directory $storePath and script $scriptPath"
 
         Importer.run(config, store)
+
+        runPostLoadScript()
     }
 
     private runPostLoadScript() {
@@ -55,6 +61,9 @@ class LoadGrameneGraphDb {
         if(p.waitFor()) {
             log.error "something went wrong! Exit value $p.exitValue()"
             log.error p.errorStream.text
+        }
+        else {
+            log.info "done running script."
         }
     }
 }

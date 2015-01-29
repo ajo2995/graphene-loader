@@ -16,12 +16,12 @@ class Importer {
     private final LabelCache labelCache = LabelCache.instance
     private BatchInserter batch
 
-    private static Set<Loader> dataLoaders = [ReactomeLoader.instance]
+//    private static Set<Loader> dataLoaders = [ReactomeLoader.instance]
 
-//    private static Set<Loader> dataLoaders = [ReactomeLoader.instance, EOLoader.instance, GOLoader.instance,
-//                                              GROLoader.instance, POLoader.instance, SOLoader.instance,
-//                                              TOLoader.instance, NCBITaxonLoader.instance, DomainLoader.instance,
-//                                              GeneLoader.instance]
+    private static Set<Loader> dataLoaders = [ReactomeLoader.instance, EOLoader.instance, GOLoader.instance,
+                                              GROLoader.instance, POLoader.instance, SOLoader.instance,
+                                              TOLoader.instance, NCBITaxonLoader.instance, DomainLoader.instance,
+                                              GeneLoader.instance]
 //    private
 //    static Set<Loader> dataLoaders = [EOLoader.instance, GOLoader.instance, GROLoader.instance,
 //                                      POLoader.instance, SOLoader.instance, TOLoader.instance,

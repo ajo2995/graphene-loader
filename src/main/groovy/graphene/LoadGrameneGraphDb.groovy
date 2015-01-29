@@ -24,7 +24,7 @@ class LoadGrameneGraphDb {
         cli.c(longOpt:'cypher', args:1, argName:'script', 'location of cypher script to run after load')
         cli.d(longOpt:'dbDump', args: 1, argName:'dbDump', 'location of reactome db dump file')
 
-        def opts = cli.parse(args)
+        OptionAccessor opts = cli.parse(args)
         String store = opts.s ?: File.createTempDir("tmpgraph", ".db").absolutePath
         String script = opts.c ?: 'post-import-cypher.txt'
         String dbDump = opts.d ?: 'db/current_plant_reactome_database.sql'
@@ -54,12 +54,13 @@ class LoadGrameneGraphDb {
     }
 
     private runPostLoadScript() {
-        Process p = "neo4j-shell -file $script.canonicalPath".execute()
+        Process p = "neo4j-shell -path $store.canonicalPath -file $script.canonicalPath".execute()
+        Integer exitval
         p.inputStream.newReader().eachLine {
             log.info it
         }
-        if(p.waitFor()) {
-            log.error "something went wrong! Exit value $p.exitValue()"
+        if((exitval = p.waitFor())) {
+            log.error "something went wrong! Exit value $exitval"
             log.error p.errorStream.text
         }
         else {

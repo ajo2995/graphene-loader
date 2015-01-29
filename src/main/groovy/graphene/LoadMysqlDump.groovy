@@ -202,7 +202,7 @@ class LoadMysqlDump {
         }
 
         private populateValuesFromNextLine() {
-            if(lineNumber > maxLine) {
+            if(!moreLinesToRead()) {
                 partialValues = Collections.emptyIterator()
                 dbFileReader.close()
                 return

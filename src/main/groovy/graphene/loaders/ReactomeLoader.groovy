@@ -16,16 +16,6 @@ class ReactomeLoader extends Loader {
         Map<String, LoadMysqlDump.Table> t = LoadMysqlDump.tablesFromDbDump(System.getProperty('REACTOME_DB_DUMP'))
         tables = getAndOrganizeFilesFrom(t)
     }
-//    ReactomeLoader(String location = "db") {
-//        File dir = new File(location)
-//        if (!dir.exists() || !dir.canRead()) {
-//            throw new FileNotFoundException("Either can't find or read from $dir.canonicalPath")
-//        }
-//
-//        // Given a directory of csv files for every table in the reactome mysql database,
-//// 1. List them
-//        files = getAndOrganizeFilesFrom(dir)
-//    }
 
     @Override
     void load() {
@@ -88,8 +78,7 @@ class ReactomeLoader extends Loader {
     }
 
 
-
-    static private getAndOrganizeFilesFrom(Map <String, LoadMysqlDump.Table> tableMap) {
+    static private getAndOrganizeFilesFrom(Map<String, LoadMysqlDump.Table> tableMap) {
         // Remove the special ones
         tableMap.groupBy { String k, _ ->
             switch (k) {
@@ -120,33 +109,6 @@ class ReactomeLoader extends Loader {
         }
 
     }
-    static private getAndOrganizeFilesFrom(File dir) {
-        dir.listFiles()
-// 2. Remove the special ones. (We've already dealt with DatabaseObject)
-                .findAll { File f -> !['Ontology.csv', 'DatabaseObject.csv', 'DataModel.csv'].contains(f.name) && !(f.name =~ /^_/) && (f.name =~/csv$/)}
-// 3. Group them by type. There are three types:
-                .groupBy { File f ->
-            switch (f.name) {
-//     a. Ones that will need new nodes to be created. These are m:m with a database object and just specify one property
-                case ~/.*_2_name.*/:
-                case ~/.*_2_synonym.*/:
-                case ~/.*_2_ec.*/:
-                case ~/.*_2_chain.*/:
-                case ~/.*_2_otherIdentifier.*/:
-                case ~/.*_2_secondCoordinate.*/:
-                case ~/ReferenceSequence_2_.*/:
-                    "newnodes"
-                    break
-//     b. Ones that define a m:m relationship between two existing types of node
-                case ~/.*_2_.*/:
-                    "relationships"
-                    break
-//     c. Ones that "decorate" a single node with additional properties and 1:m relationships to other types of node
-                default:
-                    "decorators"
-            }
-        }
-    }
 
     static long getId(line) {
         Long.valueOf((String) line.DB_ID)
@@ -166,9 +128,7 @@ class ReactomeLoader extends Loader {
             if (cacheRefNodes) {
                 cols.name = cols.remove('identifier')
                 table.columns = cols = cols.sort { it.value }
-            }
-
-            else if (cacheGoNodes) {
+            } else if (cacheGoNodes) {
                 cols.id = cols.remove('accession')
                 table.columns = cols = cols.sort { it.value }
             }
@@ -192,11 +152,9 @@ class ReactomeLoader extends Loader {
                     continue
                 }
 
-                if(cacheRefNodes) {
+                if (cacheRefNodes) {
                     nodes[additionalLabel][line.name] = id
-                }
-
-                else if(cacheGoNodes) {
+                } else if (cacheGoNodes) {
                     String idNoLeadingZeros = Integer.parseInt(line.id, 10)
                     nodes[additionalLabel][idNoLeadingZeros] = id
                 }

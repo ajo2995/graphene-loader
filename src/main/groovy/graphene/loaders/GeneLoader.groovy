@@ -34,7 +34,7 @@ class GeneLoader extends GrameneMongoLoader {
         gene.strand = location.strand
         Long taxonId = gene.remove('taxon_id')
         gene.remove('interpro')
-        List<String> geneTrees = gene.remove('genetrees')
+        List<String> geneTrees = [gene.remove('epl_gene_tree'), gene.remove('eg_gene_tree')]
         Map<String, List<String>> proteinFeatures = gene.remove('protein_features') ?: Collections.emptyMap()
 
         long nodeId = nodeNoCache(gene, labels.Gene)
@@ -185,8 +185,10 @@ class GeneLoader extends GrameneMongoLoader {
 
     void createGenetrees(long geneId, List<String> geneTrees) {
         for(String geneTree in geneTrees) {
-            long geneTreeId = node(labels.GeneTree, [name: geneTree])
-            link(geneId, geneTreeId, DynamicRelationshipType.withName('IN'))
+            if(geneTree) {
+                long geneTreeId = node(labels.GeneTree, [name: geneTree])
+                link(geneId, geneTreeId, DynamicRelationshipType.withName('IN'))
+            }
         }
     }
 }

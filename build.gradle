@@ -11,9 +11,7 @@ repositories {
 mainClassName = 'graphene.LoadGrameneGraphDb'
 
 run {
-    if(project.hasProperty('args')){
-        args project.args.split('\\s+')
-    }
+    args System.getProperty("exec.args").split()
 }
 
 dependencies {
